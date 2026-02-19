@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Plus, Building2, Search, RefreshCw, Activity } from 'lucide-react'
+import { Plus, Building2, Search, RefreshCw, Activity, X } from 'lucide-react'
 import { getCompanies, createCompany } from '../../api/companies'
+import { getCatalogActivities, addCompanyActivity } from '../../api/economicActivities'
 import Button  from '../../components/ui/Button'
 import Input   from '../../components/ui/Input'
 import Modal   from '../../components/ui/Modal'
@@ -11,17 +12,52 @@ import Spinner from '../../components/ui/Spinner'
 
 // ─── Create Company Form ──────────────────────────────────────────────────────
 function CompanyForm({ onSuccess, onCancel }) {
-  const [apiError, setApiError] = useState('')
+  const [apiError, setApiError]               = useState('')
+  const [catalogActivities, setCatalogActivities] = useState([])
+  const [loadingActivities, setLoadingActivities] = useState(true)
+  const [activitySearch, setActivitySearch]   = useState('')
+  const [selectedIds, setSelectedIds]         = useState([])
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm({ defaultValues: { country: 'Venezuela', timezone: 'UTC', plan: 'free' } })
 
+  useEffect(() => {
+    getCatalogActivities()
+      .then(({ data }) => setCatalogActivities(data.data ?? data ?? []))
+      .catch(() => setCatalogActivities([]))
+      .finally(() => setLoadingActivities(false))
+  }, [])
+
+  const filteredActivities = catalogActivities.filter((a) =>
+    a.descripcion.toLowerCase().includes(activitySearch.toLowerCase()) ||
+    a.codigo.toLowerCase().includes(activitySearch.toLowerCase())
+  )
+
+  const toggleActivity = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    )
+  }
+
+  const selectedActivities = catalogActivities.filter((a) => selectedIds.includes(a.id))
+
   const onSubmit = async (data) => {
     setApiError('')
     try {
-      await createCompany(data)
+      const res = await createCompany(data)
+      const companyId = res.data.company?.id
+
+      if (companyId && selectedIds.length > 0) {
+        await Promise.all(
+          selectedIds.map((actId) =>
+            addCompanyActivity(companyId, { cat_mhactividad_id: actId })
+          )
+        )
+      }
+
       onSuccess()
     } catch (err) {
       const msg = err.response?.data?.message
@@ -109,6 +145,85 @@ function CompanyForm({ onSuccess, onCancel }) {
           placeholder="Principal"
           {...register('branch_name')}
         />
+      </div>
+
+      {/* Actividades económicas */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-gray-700">
+            Actividades económicas
+          </label>
+          {selectedIds.length > 0 && (
+            <span className="text-xs text-brand-600 font-medium">
+              {selectedIds.length} seleccionada{selectedIds.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {/* Chips de seleccionadas */}
+        {selectedActivities.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedActivities.map((a) => (
+              <span
+                key={a.id}
+                className="inline-flex items-center gap-1 px-2 py-1 bg-brand-50 text-brand-700 border border-brand-200 rounded-full text-xs font-medium"
+              >
+                {a.codigo} · {a.descripcion.length > 30 ? a.descripcion.slice(0, 30) + '…' : a.descripcion}
+                <button
+                  type="button"
+                  onClick={() => toggleActivity(a.id)}
+                  className="ml-0.5 text-brand-400 hover:text-brand-700"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          {/* Búsqueda */}
+          <div className="relative border-b border-gray-200">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por código o descripción..."
+              value={activitySearch}
+              onChange={(e) => setActivitySearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500"
+            />
+          </div>
+
+          {/* Lista */}
+          <div className="max-h-40 overflow-y-auto">
+            {loadingActivities ? (
+              <div className="py-4"><Spinner /></div>
+            ) : filteredActivities.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">
+                {activitySearch ? 'Sin resultados' : 'No hay actividades en el catálogo'}
+              </p>
+            ) : (
+              filteredActivities.map((a) => (
+                <label
+                  key={a.id}
+                  className="flex items-start gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer transition"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(a.id)}
+                    onChange={() => toggleActivity(a.id)}
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span className="text-xs text-gray-700 leading-tight">
+                    <span className="font-medium text-gray-500">{a.codigo}</span>
+                    {' — '}
+                    {a.descripcion}
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Actions */}
