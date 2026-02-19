@@ -1,14 +1,35 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Building2, Users, Settings, UtensilsCrossed } from 'lucide-react'
-
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/companies', icon: Building2,        label: 'Empresas'  },
-  { to: '/users',     icon: Users,            label: 'Usuarios',  soon: true },
-  { to: '/settings',  icon: Settings,         label: 'Configuración', soon: true },
-]
+import { LayoutDashboard, Building2, Users, Settings, UtensilsCrossed, Tag, Activity } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Sidebar() {
+  const { user } = useAuth()
+  const isSuperAdmin   = user?.role === 'super_admin'
+  const isCompanyAdmin = user?.role === 'company_admin'
+
+  const navItems = [
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+
+    // Super admin
+    ...(isSuperAdmin ? [
+      { to: '/companies',                   icon: Building2, label: 'Empresas'          },
+      { to: '/catalog/economic-activities', icon: Tag,       label: 'Catálogo Económico' },
+    ] : []),
+
+    // Company admin
+    ...(isCompanyAdmin && user?.company_id ? [
+      {
+        to:    `/companies/${user.company_id}/economic-activities`,
+        icon:  Activity,
+        label: 'Act. Económicas',
+      },
+    ] : []),
+
+    // Coming soon
+    { to: '/users',    icon: Users,    label: 'Usuarios',      soon: true },
+    { to: '/settings', icon: Settings, label: 'Configuración', soon: true },
+  ]
+
   return (
     <aside className="fixed inset-y-0 left-0 w-64 bg-slate-900 flex flex-col z-30">
       {/* Logo */}
