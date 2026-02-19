@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Plus, Building2, Search, RefreshCw } from 'lucide-react'
+import { Plus, Building2, Search, RefreshCw, Activity } from 'lucide-react'
 import { getCompanies, createCompany } from '../../api/companies'
 import Button  from '../../components/ui/Button'
 import Input   from '../../components/ui/Input'
@@ -227,6 +228,7 @@ export default function CompaniesPage() {
                   <th className="px-6 py-3 font-medium text-gray-500">Sucursales</th>
                   <th className="px-6 py-3 font-medium text-gray-500">Estado</th>
                   <th className="px-6 py-3 font-medium text-gray-500">Creada</th>
+                  <th className="px-6 py-3 font-medium text-gray-500 w-16 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -257,6 +259,17 @@ export default function CompaniesPage() {
                     </td>
                     <td className="px-6 py-4 text-gray-400 text-xs">
                       {c.created_at ? new Date(c.created_at).toLocaleDateString('es-VE') : '—'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end">
+                        <Link
+                          to={`/companies/${c.id}/economic-activities`}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition"
+                          title="Actividades económicas"
+                        >
+                          <Activity size={15} />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
