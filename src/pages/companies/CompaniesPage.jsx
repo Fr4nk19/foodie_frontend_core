@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Plus, Building2, Search, RefreshCw, Activity, X, Users, ChevronRight } from 'lucide-react'
+import { Plus, Building2, Search, RefreshCw, Activity, X, Users, ChevronRight, Package } from 'lucide-react'
 import { getCompanies, createCompany } from '../../api/companies'
 import { getCatalogActivities, addCompanyActivity } from '../../api/economicActivities'
 import { getDepartamentos } from '../../api/departamentos'
@@ -444,6 +444,13 @@ export default function CompaniesPage() {
                           title="Usuarios"
                         >
                           <Users size={15} />
+                        </Link>
+                        <Link
+                          to={`/companies/${c.id}/products`}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition"
+                          title="Productos"
+                        >
+                          <Package size={15} />
                         </Link>
                         <Link
                           to={`/companies/${c.id}/economic-activities`}
