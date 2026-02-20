@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import {
   X, Building2, GitBranch, Users, Activity,
@@ -87,7 +87,9 @@ function GeneralTab({ company, onUpdated }) {
     defaultValues: buildDefaults(company),
   })
 
+  // Controlled values — watch keeps them reactive after reset()
   const selectedDeptId = watch('cat_mh_departamento_id')
+  const selectedMuniId = watch('cat_mh_municipio_id')
 
   useEffect(() => { reset(buildDefaults(company)) }, [company, reset]) // eslint-disable-line
 
@@ -109,14 +111,11 @@ function GeneralTab({ company, onUpdated }) {
       .catch(() => setMunicipios([]))
   }, [selectedDeptId])
 
-  // When department changes, clear the municipality selection
-  const prevDeptRef = useRef(null)
-  useEffect(() => {
-    if (prevDeptRef.current !== null && prevDeptRef.current !== selectedDeptId) {
-      setValue('cat_mh_municipio_id', '')
-    }
-    prevDeptRef.current = selectedDeptId
-  }, [selectedDeptId, setValue])
+  // Clear municipality when the user explicitly changes the department
+  const handleDeptChange = (e) => {
+    setValue('cat_mh_departamento_id', e.target.value, { shouldDirty: true })
+    setValue('cat_mh_municipio_id',    '',             { shouldDirty: true })
+  }
 
   const onSubmit = async (rawData) => {
     setApiError('')
@@ -172,29 +171,31 @@ function GeneralTab({ company, onUpdated }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">Departamento MH</label>
+          <label className="text-sm font-medium text-gray-700">Departamento</label>
           <select
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            {...register('cat_mh_departamento_id')}
+            value={selectedDeptId}
+            onChange={handleDeptChange}
           >
             <option value="">Sin seleccionar</option>
             {departamentos.map((d) => (
-              <option key={d.id} value={d.id}>{d.codigo} – {d.descripcion}</option>
+              <option key={d.id} value={String(d.id)}>{d.codigo} – {d.descripcion}</option>
             ))}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">Municipio MH</label>
+          <label className="text-sm font-medium text-gray-700">Municipio</label>
           <select
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-400"
             disabled={!selectedDeptId}
-            {...register('cat_mh_municipio_id')}
+            value={selectedMuniId}
+            onChange={(e) => setValue('cat_mh_municipio_id', e.target.value, { shouldDirty: true })}
           >
             <option value="">
               {selectedDeptId ? 'Sin seleccionar' : 'Seleccione un departamento primero'}
             </option>
             {municipios.map((m) => (
-              <option key={m.id} value={m.id}>{m.codigo} – {m.descripcion}</option>
+              <option key={m.id} value={String(m.id)}>{m.codigo} – {m.descripcion}</option>
             ))}
           </select>
         </div>
@@ -253,7 +254,9 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
       : { status: 'active', is_default: false, cat_mh_departamento_id: '', cat_mh_municipio_id: '' },
   })
 
+  // Controlled values — watch keeps them reactive
   const selectedDeptId = watch('cat_mh_departamento_id')
+  const selectedMuniId = watch('cat_mh_municipio_id')
 
   // Load departments once
   useEffect(() => {
@@ -273,14 +276,11 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
       .catch(() => setMunicipios([]))
   }, [selectedDeptId])
 
-  // When department changes, clear the municipality selection
-  const prevDeptRef = useRef(null)
-  useEffect(() => {
-    if (prevDeptRef.current !== null && prevDeptRef.current !== selectedDeptId) {
-      setValue('cat_mh_municipio_id', '')
-    }
-    prevDeptRef.current = selectedDeptId
-  }, [selectedDeptId, setValue])
+  // Clear municipality when the user explicitly changes the department
+  const handleDeptChange = (e) => {
+    setValue('cat_mh_departamento_id', e.target.value, { shouldDirty: true })
+    setValue('cat_mh_municipio_id',    '',             { shouldDirty: true })
+  }
 
   const onSubmit = async (rawData) => {
     setApiError('')
@@ -317,29 +317,31 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
         <Input id="b-phone" label="Teléfono" {...register('phone')} />
         <Input id="b-email" label="Correo"   type="email" {...register('email')} />
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">Departamento MH</label>
+          <label className="text-sm font-medium text-gray-700">Departamento</label>
           <select
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            {...register('cat_mh_departamento_id')}
+            value={selectedDeptId}
+            onChange={handleDeptChange}
           >
             <option value="">Sin seleccionar</option>
             {departamentos.map((d) => (
-              <option key={d.id} value={d.id}>{d.codigo} – {d.descripcion}</option>
+              <option key={d.id} value={String(d.id)}>{d.codigo} – {d.descripcion}</option>
             ))}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">Municipio MH</label>
+          <label className="text-sm font-medium text-gray-700">Municipio</label>
           <select
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-400"
             disabled={!selectedDeptId}
-            {...register('cat_mh_municipio_id')}
+            value={selectedMuniId}
+            onChange={(e) => setValue('cat_mh_municipio_id', e.target.value, { shouldDirty: true })}
           >
             <option value="">
               {selectedDeptId ? 'Sin seleccionar' : 'Seleccione un departamento primero'}
             </option>
             {municipios.map((m) => (
-              <option key={m.id} value={m.id}>{m.codigo} – {m.descripcion}</option>
+              <option key={m.id} value={String(m.id)}>{m.codigo} – {m.descripcion}</option>
             ))}
           </select>
         </div>
