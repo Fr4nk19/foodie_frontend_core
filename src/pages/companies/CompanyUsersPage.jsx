@@ -4,11 +4,12 @@ import { useForm } from 'react-hook-form'
 import { Plus, Users, Search, RefreshCw, Pencil, Trash2, Power, ArrowLeft } from 'lucide-react'
 import { getCompanyUsers, createCompanyUser, updateCompanyUser, deleteCompanyUser } from '../../api/users'
 import { useAuth } from '../../context/AuthContext'
-import Button  from '../../components/ui/Button'
-import Input   from '../../components/ui/Input'
-import Modal   from '../../components/ui/Modal'
-import Badge   from '../../components/ui/Badge'
-import Spinner from '../../components/ui/Spinner'
+import Button     from '../../components/ui/Button'
+import Input      from '../../components/ui/Input'
+import Modal      from '../../components/ui/Modal'
+import Badge      from '../../components/ui/Badge'
+import Spinner    from '../../components/ui/Spinner'
+import Pagination from '../../components/ui/Pagination'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function roleBadge(role) {
@@ -172,6 +173,9 @@ export default function CompanyUsersPage() {
   const isSuperAdmin = authUser?.role === 'super_admin'
 
   const [users, setUsers]           = useState([])
+  const [meta, setMeta]             = useState(null)
+  const [page, setPage]             = useState(1)
+  const [perPage, setPerPage]       = useState(15)
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [showCreate, setShowCreate] = useState(false)
@@ -181,11 +185,19 @@ export default function CompanyUsersPage() {
 
   const load = useCallback(() => {
     setLoading(true)
-    getCompanyUsers(companyId)
-      .then(({ data }) => setUsers(data.data ?? []))
+    getCompanyUsers(companyId, { page, per_page: perPage })
+      .then(({ data }) => {
+        if (data.meta) {
+          setUsers(data.data ?? [])
+          setMeta(data.meta)
+        } else {
+          setUsers(data.data ?? [])
+          setMeta(null)
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [companyId])
+  }, [companyId, page, perPage])
 
   useEffect(() => { load() }, [load])
 
@@ -234,7 +246,7 @@ export default function CompanyUsersPage() {
           <div>
             <h2 className="text-xl font-bold text-gray-900">Usuarios de la empresa</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              {users.length} usuario{users.length !== 1 ? 's' : ''} registrado{users.length !== 1 ? 's' : ''}
+              {(meta?.total ?? users.length)} usuario{(meta?.total ?? users.length) !== 1 ? 's' : ''} registrado{(meta?.total ?? users.length) !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
@@ -347,6 +359,15 @@ export default function CompanyUsersPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Pagination */}
+        {meta && (
+          <Pagination
+            meta={meta}
+            onPage={(p) => setPage(p)}
+            onPerPage={(pp) => { setPage(1); setPerPage(pp) }}
+          />
         )}
       </div>
 

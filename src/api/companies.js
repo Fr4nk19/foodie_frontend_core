@@ -1,4 +1,4 @@
 import api from './axios'
 
-export const getCompanies   = ()     => api.get('/companies')
-export const createCompany  = (data) => api.post('/companies', data)
+export const getCompanies   = (params) => api.get('/companies', { params })
+export const createCompany  = (data)   => api.post('/companies', data)

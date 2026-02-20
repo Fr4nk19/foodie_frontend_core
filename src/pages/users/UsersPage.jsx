@@ -3,11 +3,12 @@ import { useForm } from 'react-hook-form'
 import { Plus, Users, Search, RefreshCw, Pencil, Trash2, Power } from 'lucide-react'
 import { getUsers, createUser, updateUser, deleteUser } from '../../api/users'
 import { getCompanies } from '../../api/companies'
-import Button  from '../../components/ui/Button'
-import Input   from '../../components/ui/Input'
-import Modal   from '../../components/ui/Modal'
-import Badge   from '../../components/ui/Badge'
-import Spinner from '../../components/ui/Spinner'
+import Button     from '../../components/ui/Button'
+import Input      from '../../components/ui/Input'
+import Modal      from '../../components/ui/Modal'
+import Badge      from '../../components/ui/Badge'
+import Spinner    from '../../components/ui/Spinner'
+import Pagination from '../../components/ui/Pagination'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ROLES = [
@@ -190,6 +191,9 @@ function ConfirmDeleteModal({ user, onConfirm, onCancel, loading }) {
 export default function UsersPage() {
   const [users, setUsers]             = useState([])
   const [companies, setCompanies]     = useState([])
+  const [meta, setMeta]               = useState(null)
+  const [page, setPage]               = useState(1)
+  const [perPage, setPerPage]         = useState(15)
   const [loading, setLoading]         = useState(true)
   const [search, setSearch]           = useState('')
   const [showCreate, setShowCreate]   = useState(false)
@@ -200,16 +204,24 @@ export default function UsersPage() {
   const load = useCallback(() => {
     setLoading(true)
     Promise.all([
-      getUsers(),
-      getCompanies(),
+      getUsers({ page, per_page: perPage }),
+      getCompanies({ per_page: 100 }),
     ])
       .then(([usersRes, companiesRes]) => {
-        setUsers(usersRes.data.data ?? [])
-        setCompanies(companiesRes.data.companies ?? [])
+        const ud = usersRes.data
+        if (ud.meta) {
+          setUsers(ud.data ?? [])
+          setMeta(ud.meta)
+        } else {
+          setUsers(ud.data ?? [])
+          setMeta(null)
+        }
+        const cd = companiesRes.data
+        setCompanies(cd.data ?? cd.companies ?? [])
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [page, perPage])
 
   useEffect(() => { load() }, [load])
 
@@ -249,7 +261,7 @@ export default function UsersPage() {
         <div>
           <h2 className="text-xl font-bold text-gray-900">Usuarios</h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            {users.length} usuario{users.length !== 1 ? 's' : ''} registrado{users.length !== 1 ? 's' : ''}
+            {(meta?.total ?? users.length)} usuario{(meta?.total ?? users.length) !== 1 ? 's' : ''} registrado{(meta?.total ?? users.length) !== 1 ? 's' : ''}
           </p>
         </div>
         <Button onClick={() => setShowCreate(true)}>
@@ -367,6 +379,15 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Pagination */}
+        {meta && (
+          <Pagination
+            meta={meta}
+            onPage={(p) => setPage(p)}
+            onPerPage={(pp) => { setPage(1); setPerPage(pp) }}
+          />
         )}
       </div>
 

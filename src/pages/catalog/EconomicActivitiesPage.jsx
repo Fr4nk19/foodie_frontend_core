@@ -8,10 +8,11 @@ import {
   deleteCatalogActivity,
 } from '../../api/economicActivities'
 import { useAuth } from '../../context/AuthContext'
-import Button  from '../../components/ui/Button'
-import Input   from '../../components/ui/Input'
-import Modal   from '../../components/ui/Modal'
-import Spinner from '../../components/ui/Spinner'
+import Button     from '../../components/ui/Button'
+import Input      from '../../components/ui/Input'
+import Modal      from '../../components/ui/Modal'
+import Spinner    from '../../components/ui/Spinner'
+import Pagination from '../../components/ui/Pagination'
 
 // ─── Form (create / edit) ─────────────────────────────────────────────────────
 function ActivityForm({ initial, onSuccess, onCancel }) {
@@ -110,6 +111,9 @@ export default function EconomicActivitiesPage() {
   const isSuperAdmin = user?.role === 'super_admin'
 
   const [activities, setActivities] = useState([])
+  const [meta, setMeta]             = useState(null)
+  const [page, setPage]             = useState(1)
+  const [perPage, setPerPage]       = useState(15)
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [showCreate, setShowCreate] = useState(false)
@@ -119,11 +123,19 @@ export default function EconomicActivitiesPage() {
 
   const load = useCallback(() => {
     setLoading(true)
-    getCatalogActivities()
-      .then(({ data }) => setActivities(data.data ?? []))
+    getCatalogActivities({ page, per_page: perPage })
+      .then(({ data }) => {
+        if (data.meta) {
+          setActivities(data.data ?? [])
+          setMeta(data.meta)
+        } else {
+          setActivities(data.data ?? [])
+          setMeta(null)
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [page, perPage])
 
   useEffect(() => { load() }, [load])
 
@@ -153,7 +165,7 @@ export default function EconomicActivitiesPage() {
         <div>
           <h2 className="text-xl font-bold text-gray-900">Catálogo de Actividades Económicas</h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            {activities.length} actividad{activities.length !== 1 ? 'es' : ''} registrada{activities.length !== 1 ? 's' : ''}
+            {(meta?.total ?? activities.length)} actividad{(meta?.total ?? activities.length) !== 1 ? 'es' : ''} registrada{(meta?.total ?? activities.length) !== 1 ? 's' : ''}
           </p>
         </div>
         {isSuperAdmin && (
@@ -258,6 +270,15 @@ export default function EconomicActivitiesPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Pagination */}
+        {meta && (
+          <Pagination
+            meta={meta}
+            onPage={(p) => setPage(p)}
+            onPerPage={(pp) => { setPage(1); setPerPage(pp) }}
+          />
         )}
       </div>
 
