@@ -7,6 +7,7 @@ import {
   updateMunicipio,
   deleteMunicipio,
 } from '../../api/municipios'
+import { getDepartamentos } from '../../api/departamentos'
 import { useAuth } from '../../context/AuthContext'
 import Button     from '../../components/ui/Button'
 import Input      from '../../components/ui/Input'
@@ -16,12 +17,26 @@ import Pagination from '../../components/ui/Pagination'
 
 // ─── Form (create / edit) ─────────────────────────────────────────────────────
 function MunicipioForm({ initial, onSuccess, onCancel }) {
-  const [apiError, setApiError] = useState('')
+  const [apiError,      setApiError]      = useState('')
+  const [departamentos, setDepartamentos] = useState([])
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm({ defaultValues: initial ?? { codigo: '', descripcion: '' } })
+  } = useForm({
+    defaultValues: initial ?? {
+      cat_mh_departamento_id: '',
+      codigo:                 '',
+      descripcion:            '',
+    },
+  })
+
+  useEffect(() => {
+    getDepartamentos({ per_page: 500 })
+      .then(({ data }) => setDepartamentos(data.data ?? []))
+      .catch(() => setDepartamentos([]))
+  }, [])
 
   const isEdit = !!initial
 
@@ -53,6 +68,26 @@ function MunicipioForm({ initial, onSuccess, onCancel }) {
           {apiError}
         </div>
       )}
+
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-gray-700">Departamento *</label>
+        <select
+          className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+            errors.cat_mh_departamento_id ? 'border-red-400' : 'border-gray-300'
+          }`}
+          {...register('cat_mh_departamento_id', { required: 'El departamento es obligatorio' })}
+        >
+          <option value="">Seleccionar departamento…</option>
+          {departamentos.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.codigo} – {d.descripcion}
+            </option>
+          ))}
+        </select>
+        {errors.cat_mh_departamento_id && (
+          <p className="text-xs text-red-500">{errors.cat_mh_departamento_id.message}</p>
+        )}
+      </div>
 
       <Input
         id="codigo"
@@ -110,20 +145,31 @@ export default function MunicipiosPage() {
   const { user } = useAuth()
   const isSuperAdmin = user?.role === 'super_admin'
 
-  const [items, setItems]           = useState([])
-  const [meta, setMeta]             = useState(null)
-  const [page, setPage]             = useState(1)
-  const [perPage, setPerPage]       = useState(15)
-  const [loading, setLoading]       = useState(true)
-  const [search, setSearch]         = useState('')
-  const [showCreate, setShowCreate] = useState(false)
-  const [editing, setEditing]       = useState(null)
-  const [deleting, setDeleting]     = useState(null)
+  const [items,        setItems]        = useState([])
+  const [meta,         setMeta]         = useState(null)
+  const [page,         setPage]         = useState(1)
+  const [perPage,      setPerPage]      = useState(15)
+  const [loading,      setLoading]      = useState(true)
+  const [search,       setSearch]       = useState('')
+  const [filterDeptId, setFilterDeptId] = useState('')
+  const [departamentos, setDepartamentos] = useState([])
+  const [showCreate,   setShowCreate]   = useState(false)
+  const [editing,      setEditing]      = useState(null)
+  const [deleting,     setDeleting]     = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+
+  // Load department list for the filter dropdown
+  useEffect(() => {
+    getDepartamentos({ per_page: 500 })
+      .then(({ data }) => setDepartamentos(data.data ?? []))
+      .catch(() => setDepartamentos([]))
+  }, [])
 
   const load = useCallback(() => {
     setLoading(true)
-    getMunicipios({ page, per_page: perPage })
+    const params = { page, per_page: perPage }
+    if (filterDeptId) params.departamento_id = filterDeptId
+    getMunicipios(params)
       .then(({ data }) => {
         if (data.meta) {
           setItems(data.data ?? [])
@@ -135,9 +181,15 @@ export default function MunicipiosPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [page, perPage])
+  }, [page, perPage, filterDeptId])
 
   useEffect(() => { load() }, [load])
+
+  // When department filter changes, reset to page 1
+  const handleDeptFilter = (deptId) => {
+    setFilterDeptId(deptId)
+    setPage(1)
+  }
 
   const filtered = items.filter(
     (a) =>
@@ -179,8 +231,23 @@ export default function MunicipiosPage() {
       {/* Table card */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         {/* Toolbar */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
+        <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+          {/* Department filter */}
+          <select
+            value={filterDeptId}
+            onChange={(e) => handleDeptFilter(e.target.value)}
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 text-gray-600"
+          >
+            <option value="">Todos los departamentos</option>
+            {departamentos.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.codigo} – {d.descripcion}
+              </option>
+            ))}
+          </select>
+
+          {/* Text search */}
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -190,6 +257,7 @@ export default function MunicipiosPage() {
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
+
           <button
             onClick={load}
             className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition"
@@ -206,9 +274,11 @@ export default function MunicipiosPage() {
           <div className="py-16 text-center">
             <Map size={40} className="mx-auto text-gray-200 mb-3" />
             <p className="text-gray-400 text-sm">
-              {search ? 'Sin resultados para tu búsqueda' : 'Aún no hay municipios registrados'}
+              {search || filterDeptId
+                ? 'Sin resultados para tu búsqueda'
+                : 'Aún no hay municipios registrados'}
             </p>
-            {!search && isSuperAdmin && (
+            {!search && !filterDeptId && isSuperAdmin && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -225,6 +295,7 @@ export default function MunicipiosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-left bg-gray-50">
+                  <th className="px-6 py-3 font-medium text-gray-500">Departamento</th>
                   <th className="px-6 py-3 font-medium text-gray-500 w-32">Código</th>
                   <th className="px-6 py-3 font-medium text-gray-500">Descripción</th>
                   <th className="px-6 py-3 font-medium text-gray-500 w-32">Creado</th>
@@ -236,6 +307,11 @@ export default function MunicipiosPage() {
               <tbody className="divide-y divide-gray-50">
                 {filtered.map((a) => (
                   <tr key={a.id} className="hover:bg-gray-50 transition">
+                    <td className="px-6 py-4 text-gray-500 text-xs">
+                      {a.departamento
+                        ? `${a.departamento.codigo} – ${a.departamento.descripcion}`
+                        : <span className="italic text-gray-300">Sin departamento</span>}
+                    </td>
                     <td className="px-6 py-4">
                       <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
                         {a.codigo}
