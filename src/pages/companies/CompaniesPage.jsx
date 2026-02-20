@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Plus, Building2, Search, RefreshCw, Activity, X, Users } from 'lucide-react'
+import { Plus, Building2, Search, RefreshCw, Activity, X, Users, ChevronRight } from 'lucide-react'
 import { getCompanies, createCompany } from '../../api/companies'
 import { getCatalogActivities, addCompanyActivity } from '../../api/economicActivities'
-import Button     from '../../components/ui/Button'
-import Input      from '../../components/ui/Input'
-import Modal      from '../../components/ui/Modal'
-import Badge      from '../../components/ui/Badge'
-import Spinner    from '../../components/ui/Spinner'
-import Pagination from '../../components/ui/Pagination'
+import Button              from '../../components/ui/Button'
+import Input               from '../../components/ui/Input'
+import Modal               from '../../components/ui/Modal'
+import Badge               from '../../components/ui/Badge'
+import Spinner             from '../../components/ui/Spinner'
+import Pagination          from '../../components/ui/Pagination'
+import CompanyDetailPanel  from '../../components/companies/CompanyDetailPanel'
 
 // ─── Create Company Form ──────────────────────────────────────────────────────
 function CompanyForm({ onSuccess, onCancel }) {
@@ -246,13 +247,14 @@ const planType  = { free: 'free',     basic: 'basic',  premium: 'premium' }
 
 // ─── Companies Page ───────────────────────────────────────────────────────────
 export default function CompaniesPage() {
-  const [companies, setCompanies] = useState([])
-  const [meta, setMeta]           = useState(null)
-  const [page, setPage]           = useState(1)
-  const [perPage, setPerPage]     = useState(15)
-  const [loading, setLoading]     = useState(true)
-  const [search, setSearch]       = useState('')
-  const [showModal, setShowModal] = useState(false)
+  const [companies, setCompanies]         = useState([])
+  const [meta, setMeta]                   = useState(null)
+  const [page, setPage]                   = useState(1)
+  const [perPage, setPerPage]             = useState(15)
+  const [loading, setLoading]             = useState(true)
+  const [search, setSearch]               = useState('')
+  const [showModal, setShowModal]         = useState(false)
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -361,11 +363,18 @@ export default function CompaniesPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-gray-50 transition">
+                  <tr
+                    key={c.id}
+                    onClick={() => setSelectedCompanyId(c.id)}
+                    className={`hover:bg-brand-50/40 transition cursor-pointer ${selectedCompanyId === c.id ? 'bg-brand-50/60' : ''}`}
+                  >
                     <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{c.name}</p>
-                        <p className="text-xs text-gray-400">{c.slug}</p>
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <p className="font-medium text-gray-900">{c.name}</p>
+                          <p className="text-xs text-gray-400">{c.slug}</p>
+                        </div>
+                        <ChevronRight size={14} className="text-gray-300 ml-auto shrink-0" />
                       </div>
                     </td>
                     <td className="px-6 py-4 text-gray-500">{c.email}</td>
@@ -388,7 +397,7 @@ export default function CompaniesPage() {
                     <td className="px-6 py-4 text-gray-400 text-xs">
                       {c.created_at ? new Date(c.created_at).toLocaleDateString('es-VE') : '—'}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">
                         <Link
                           to={`/companies/${c.id}/users`}
@@ -435,6 +444,15 @@ export default function CompaniesPage() {
           onCancel={() => setShowModal(false)}
         />
       </Modal>
+
+      {/* Company detail panel */}
+      {selectedCompanyId && (
+        <CompanyDetailPanel
+          companyId={selectedCompanyId}
+          onClose={() => setSelectedCompanyId(null)}
+          onUpdated={load}
+        />
+      )}
     </div>
   )
 }
