@@ -25,11 +25,20 @@ function StatCard({ icon: Icon, label, value, color, loading }) {
 export default function DashboardPage() {
   const { user } = useAuth()
   const [companies, setCompanies] = useState([])
+  const [meta, setMeta]           = useState(null)
   const [loading, setLoading]     = useState(true)
 
   useEffect(() => {
     getCompanies()
-      .then(({ data }) => setCompanies(data.companies ?? []))
+      .then(({ data }) => {
+        if (data.meta) {
+          setCompanies(data.data ?? [])
+          setMeta(data.meta)
+        } else {
+          setCompanies(data.companies ?? data.data ?? [])
+          setMeta(null)
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -59,7 +68,7 @@ export default function DashboardPage() {
         <StatCard
           icon={Building2}
           label="Total Empresas"
-          value={companies.length}
+          value={meta?.total ?? companies.length}
           color="bg-brand-500"
           loading={loading}
         />
