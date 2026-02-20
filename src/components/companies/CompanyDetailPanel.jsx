@@ -64,10 +64,6 @@ function GeneralTab({ company, onUpdated }) {
   const [departamentos, setDepartamentos] = useState([])
   const [municipios,    setMunicipios]    = useState([])
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting, isDirty } } = useForm({
-    defaultValues: buildDefaults(company),
-  })
-
   function buildDefaults(c) {
     return {
       name:                   c.name                   ?? '',
@@ -85,16 +81,40 @@ function GeneralTab({ company, onUpdated }) {
     }
   }
 
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting, isDirty } } = useForm({
+    defaultValues: buildDefaults(company),
+  })
+
+  const selectedDeptId = watch('cat_mh_departamento_id')
+
   useEffect(() => { reset(buildDefaults(company)) }, [company, reset]) // eslint-disable-line
 
+  // Load departments once
   useEffect(() => {
     getDepartamentos({ per_page: 500 })
       .then(({ data }) => setDepartamentos(data.data ?? []))
       .catch(() => setDepartamentos([]))
-    getMunicipios({ per_page: 500 })
+  }, [])
+
+  // Reload municipalities whenever the selected department changes
+  useEffect(() => {
+    if (!selectedDeptId) {
+      setMunicipios([])
+      return
+    }
+    getMunicipios({ departamento_id: selectedDeptId, per_page: 500 })
       .then(({ data }) => setMunicipios(data.data ?? []))
       .catch(() => setMunicipios([]))
-  }, [])
+  }, [selectedDeptId])
+
+  // When department changes, clear the municipality selection
+  const prevDeptRef = useRef(null)
+  useEffect(() => {
+    if (prevDeptRef.current !== null && prevDeptRef.current !== selectedDeptId) {
+      setValue('cat_mh_municipio_id', '')
+    }
+    prevDeptRef.current = selectedDeptId
+  }, [selectedDeptId, setValue])
 
   const onSubmit = async (data) => {
     setApiError('')
@@ -158,10 +178,13 @@ function GeneralTab({ company, onUpdated }) {
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700">Municipio MH</label>
           <select
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-400"
+            disabled={!selectedDeptId}
             {...register('cat_mh_municipio_id')}
           >
-            <option value="">Sin seleccionar</option>
+            <option value="">
+              {selectedDeptId ? 'Sin seleccionar' : 'Seleccione un departamento primero'}
+            </option>
             {municipios.map((m) => (
               <option key={m.id} value={m.id}>{m.codigo} – {m.descripcion}</option>
             ))}
@@ -211,7 +234,7 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
   const [municipios,    setMunicipios]    = useState([])
   const isEdit = !!initial
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm({
     defaultValues: initial
       ? { name: initial.name, address: initial.address ?? '', city: initial.city ?? '',
           state: initial.state ?? '', phone: initial.phone ?? '', email: initial.email ?? '',
@@ -221,14 +244,34 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
       : { status: 'active', is_default: false, cat_mh_departamento_id: '', cat_mh_municipio_id: '' },
   })
 
+  const selectedDeptId = watch('cat_mh_departamento_id')
+
+  // Load departments once
   useEffect(() => {
     getDepartamentos({ per_page: 500 })
       .then(({ data }) => setDepartamentos(data.data ?? []))
       .catch(() => setDepartamentos([]))
-    getMunicipios({ per_page: 500 })
+  }, [])
+
+  // Reload municipalities whenever the selected department changes
+  useEffect(() => {
+    if (!selectedDeptId) {
+      setMunicipios([])
+      return
+    }
+    getMunicipios({ departamento_id: selectedDeptId, per_page: 500 })
       .then(({ data }) => setMunicipios(data.data ?? []))
       .catch(() => setMunicipios([]))
-  }, [])
+  }, [selectedDeptId])
+
+  // When department changes, clear the municipality selection
+  const prevDeptRef = useRef(null)
+  useEffect(() => {
+    if (prevDeptRef.current !== null && prevDeptRef.current !== selectedDeptId) {
+      setValue('cat_mh_municipio_id', '')
+    }
+    prevDeptRef.current = selectedDeptId
+  }, [selectedDeptId, setValue])
 
   const onSubmit = async (data) => {
     setApiError('')
@@ -273,10 +316,13 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700">Municipio MH</label>
           <select
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-gray-400"
+            disabled={!selectedDeptId}
             {...register('cat_mh_municipio_id')}
           >
-            <option value="">Sin seleccionar</option>
+            <option value="">
+              {selectedDeptId ? 'Sin seleccionar' : 'Seleccione un departamento primero'}
+            </option>
             {municipios.map((m) => (
               <option key={m.id} value={m.id}>{m.codigo} – {m.descripcion}</option>
             ))}
