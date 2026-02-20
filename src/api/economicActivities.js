@@ -2,8 +2,8 @@ import api from './axios'
 
 // ─── Catálogo MH (super admin) ────────────────────────────────────────────────
 
-export const getCatalogActivities = () =>
-  api.get('/catalog/economic-activities')
+export const getCatalogActivities = (params) =>
+  api.get('/catalog/economic-activities', { params })
 
 export const createCatalogActivity = (data) =>
   api.post('/catalog/economic-activities', data)
@@ -16,8 +16,8 @@ export const deleteCatalogActivity = (id) =>
 
 // ─── Actividades por empresa ──────────────────────────────────────────────────
 
-export const getCompanyActivities = (companyId) =>
-  api.get(`/companies/${companyId}/economic-activities`)
+export const getCompanyActivities = (companyId, params) =>
+  api.get(`/companies/${companyId}/economic-activities`, { params })
 
 export const addCompanyActivity = (companyId, data) =>
   api.post(`/companies/${companyId}/economic-activities`, data)

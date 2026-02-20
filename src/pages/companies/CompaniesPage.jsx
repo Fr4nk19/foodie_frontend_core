@@ -4,11 +4,12 @@ import { useForm } from 'react-hook-form'
 import { Plus, Building2, Search, RefreshCw, Activity, X, Users } from 'lucide-react'
 import { getCompanies, createCompany } from '../../api/companies'
 import { getCatalogActivities, addCompanyActivity } from '../../api/economicActivities'
-import Button  from '../../components/ui/Button'
-import Input   from '../../components/ui/Input'
-import Modal   from '../../components/ui/Modal'
-import Badge   from '../../components/ui/Badge'
-import Spinner from '../../components/ui/Spinner'
+import Button     from '../../components/ui/Button'
+import Input      from '../../components/ui/Input'
+import Modal      from '../../components/ui/Modal'
+import Badge      from '../../components/ui/Badge'
+import Spinner    from '../../components/ui/Spinner'
+import Pagination from '../../components/ui/Pagination'
 
 // ─── Create Company Form ──────────────────────────────────────────────────────
 function CompanyForm({ onSuccess, onCancel }) {
@@ -246,17 +247,29 @@ const planType  = { free: 'free',     basic: 'basic',  premium: 'premium' }
 // ─── Companies Page ───────────────────────────────────────────────────────────
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState([])
+  const [meta, setMeta]           = useState(null)
+  const [page, setPage]           = useState(1)
+  const [perPage, setPerPage]     = useState(15)
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [showModal, setShowModal] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
-    getCompanies()
-      .then(({ data }) => setCompanies(data.companies ?? []))
+    getCompanies({ page, per_page: perPage })
+      .then(({ data }) => {
+        // Supports both paginated { data, meta } and legacy { companies } responses
+        if (data.meta) {
+          setCompanies(data.data ?? [])
+          setMeta(data.meta)
+        } else {
+          setCompanies(data.companies ?? data.data ?? [])
+          setMeta(null)
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [page, perPage])
 
   useEffect(() => { load() }, [load])
 
@@ -278,7 +291,7 @@ export default function CompaniesPage() {
         <div>
           <h2 className="text-xl font-bold text-gray-900">Empresas</h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            {companies.length} empresa{companies.length !== 1 ? 's' : ''} registrada{companies.length !== 1 ? 's' : ''}
+            {(meta?.total ?? companies.length)} empresa{(meta?.total ?? companies.length) !== 1 ? 's' : ''} registrada{(meta?.total ?? companies.length) !== 1 ? 's' : ''}
           </p>
         </div>
         <Button onClick={() => setShowModal(true)}>
@@ -398,6 +411,15 @@ export default function CompaniesPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Pagination */}
+        {meta && (
+          <Pagination
+            meta={meta}
+            onPage={(p) => setPage(p)}
+            onPerPage={(pp) => { setPage(1); setPerPage(pp) }}
+          />
         )}
       </div>
 
