@@ -76,8 +76,10 @@ function GeneralTab({ company, onUpdated }) {
       timezone:               c.timezone               ?? 'UTC',
       plan:                   c.plan                   ?? 'free',
       status:                 c.status                 ?? 'active',
-      cat_mh_departamento_id: c.cat_mh_departamento_id ?? '',
-      cat_mh_municipio_id:    c.cat_mh_municipio_id    ?? '',
+      // Normalize to string — <select> always yields strings, so reset()
+      // won't create a number-vs-string mismatch in prevDeptRef comparisons.
+      cat_mh_departamento_id: c.cat_mh_departamento_id ? String(c.cat_mh_departamento_id) : '',
+      cat_mh_municipio_id:    c.cat_mh_municipio_id    ? String(c.cat_mh_municipio_id)    : '',
     }
   }
 
@@ -116,9 +118,15 @@ function GeneralTab({ company, onUpdated }) {
     prevDeptRef.current = selectedDeptId
   }, [selectedDeptId, setValue])
 
-  const onSubmit = async (data) => {
+  const onSubmit = async (rawData) => {
     setApiError('')
     setSuccess(false)
+    // Convert empty strings to null so Laravel's nullable rule handles them correctly
+    const data = {
+      ...rawData,
+      cat_mh_departamento_id: rawData.cat_mh_departamento_id || null,
+      cat_mh_municipio_id:    rawData.cat_mh_municipio_id    || null,
+    }
     try {
       await updateCompany(company.id, data)
       setSuccess(true)
@@ -239,8 +247,9 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
       ? { name: initial.name, address: initial.address ?? '', city: initial.city ?? '',
           state: initial.state ?? '', phone: initial.phone ?? '', email: initial.email ?? '',
           status: initial.status ?? 'active', is_default: initial.is_default ?? false,
-          cat_mh_departamento_id: initial.cat_mh_departamento_id ?? '',
-          cat_mh_municipio_id:    initial.cat_mh_municipio_id    ?? '' }
+          // Normalize to string — <select> always yields strings
+          cat_mh_departamento_id: initial.cat_mh_departamento_id ? String(initial.cat_mh_departamento_id) : '',
+          cat_mh_municipio_id:    initial.cat_mh_municipio_id    ? String(initial.cat_mh_municipio_id)    : '' }
       : { status: 'active', is_default: false, cat_mh_departamento_id: '', cat_mh_municipio_id: '' },
   })
 
@@ -273,8 +282,14 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
     prevDeptRef.current = selectedDeptId
   }, [selectedDeptId, setValue])
 
-  const onSubmit = async (data) => {
+  const onSubmit = async (rawData) => {
     setApiError('')
+    // Convert empty strings to null so Laravel's nullable rule handles them correctly
+    const data = {
+      ...rawData,
+      cat_mh_departamento_id: rawData.cat_mh_departamento_id || null,
+      cat_mh_municipio_id:    rawData.cat_mh_municipio_id    || null,
+    }
     try {
       if (isEdit) await updateCompanyBranch(companyId, initial.id, data)
       else        await createCompanyBranch(companyId, data)
