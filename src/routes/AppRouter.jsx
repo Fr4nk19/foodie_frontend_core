@@ -8,6 +8,9 @@ import CompaniesPage       from '../pages/companies/CompaniesPage'
 import CompanyEconomicActivitiesPage from '../pages/companies/CompanyEconomicActivitiesPage'
 import CompanyUsersPage              from '../pages/companies/CompanyUsersPage'
 import EconomicActivitiesPage        from '../pages/catalog/EconomicActivitiesPage'
+import TipoEstablecimientoPage       from '../pages/catalog/TipoEstablecimientoPage'
+import DepartamentosPage             from '../pages/catalog/DepartamentosPage'
+import MunicipiosPage                from '../pages/catalog/MunicipiosPage'
 import UsersPage                     from '../pages/users/UsersPage'
 
 export default function AppRouter() {
@@ -43,6 +46,18 @@ export default function AppRouter() {
               <Route
                 path="/catalog/economic-activities"
                 element={<EconomicActivitiesPage />}
+              />
+              <Route
+                path="/catalog/tipo-establecimiento"
+                element={<TipoEstablecimientoPage />}
+              />
+              <Route
+                path="/catalog/departamentos"
+                element={<DepartamentosPage />}
+              />
+              <Route
+                path="/catalog/municipios"
+                element={<MunicipiosPage />}
               />
 
               {/* Usuarios globales (super admin) */}

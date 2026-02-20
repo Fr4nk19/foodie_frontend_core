@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Building2, Users, Settings, UtensilsCrossed, Tag, Activity } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, Settings, UtensilsCrossed, Tag, Activity, Store, MapPin, Map } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 export default function Sidebar() {
@@ -12,8 +12,7 @@ export default function Sidebar() {
 
     // Super admin
     ...(isSuperAdmin ? [
-      { to: '/companies',                   icon: Building2, label: 'Empresas'          },
-      { to: '/catalog/economic-activities', icon: Tag,       label: 'Catálogo Económico' },
+      { to: '/companies', icon: Building2, label: 'Empresas' },
     ] : []),
 
     // Company admin
@@ -38,6 +37,13 @@ export default function Sidebar() {
     // Coming soon
     { to: '/settings', icon: Settings, label: 'Configuración', soon: true },
   ]
+
+  const catalogItems = isSuperAdmin ? [
+    { to: '/catalog/economic-activities',  icon: Tag,     label: 'Act. Económicas'    },
+    { to: '/catalog/tipo-establecimiento', icon: Store,   label: 'Tipo Establecimiento' },
+    { to: '/catalog/departamentos',        icon: MapPin,  label: 'Departamentos'       },
+    { to: '/catalog/municipios',           icon: Map,     label: 'Municipios'          },
+  ] : []
 
   return (
     <aside className="fixed inset-y-0 left-0 w-64 bg-slate-900 flex flex-col z-30">
@@ -76,6 +82,31 @@ export default function Sidebar() {
             )}
           </NavLink>
         ))}
+
+        {/* Catálogos section (super admin only) */}
+        {catalogItems.length > 0 && (
+          <div className="pt-3">
+            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              Catálogos
+            </p>
+            {catalogItems.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                   ${isActive
+                     ? 'bg-brand-500 text-white'
+                     : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                   }`
+                }
+              >
+                <Icon size={18} />
+                <span className="flex-1">{label}</span>
+              </NavLink>
+            ))}
+          </div>
+        )}
       </nav>
 
       {/* Footer */}
