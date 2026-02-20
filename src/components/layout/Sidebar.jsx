@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Building2, Users, Settings, UtensilsCrossed, Tag, Activity, Store, MapPin, Map } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, Settings, UtensilsCrossed, Tag, Activity, Store, MapPin, Map, Package, Warehouse, Ruler } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 export default function Sidebar() {
   const { user } = useAuth()
-  const isSuperAdmin   = user?.role === 'super_admin'
-  const isCompanyAdmin = user?.role === 'company_admin'
+  const isSuperAdmin    = user?.role === 'super_admin'
+  const isCompanyAdmin  = user?.role === 'company_admin'
+  const isBranchManager = user?.role === 'branch_manager'
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -27,6 +28,20 @@ export default function Sidebar() {
         icon:  Users,
         label: 'Usuarios',
       },
+      {
+        to:    `/companies/${user.company_id}/products`,
+        icon:  Package,
+        label: 'Productos',
+      },
+    ] : []),
+
+    // Branch manager
+    ...(isBranchManager && user?.company_id && user?.branch_id ? [
+      {
+        to:    `/companies/${user.company_id}/branches/${user.branch_id}/inventory`,
+        icon:  Warehouse,
+        label: 'Inventario',
+      },
     ] : []),
 
     // Super admin — usuarios globales
@@ -39,10 +54,11 @@ export default function Sidebar() {
   ]
 
   const catalogItems = isSuperAdmin ? [
-    { to: '/catalog/economic-activities',  icon: Tag,     label: 'Act. Económicas'    },
-    { to: '/catalog/tipo-establecimiento', icon: Store,   label: 'Tipo Establecimiento' },
-    { to: '/catalog/departamentos',        icon: MapPin,  label: 'Departamentos'       },
-    { to: '/catalog/municipios',           icon: Map,     label: 'Municipios'          },
+    { to: '/catalog/economic-activities',  icon: Tag,     label: 'Act. Económicas'      },
+    { to: '/catalog/tipo-establecimiento', icon: Store,   label: 'Tipo Establecimiento'  },
+    { to: '/catalog/departamentos',        icon: MapPin,  label: 'Departamentos'         },
+    { to: '/catalog/municipios',           icon: Map,     label: 'Municipios'            },
+    { to: '/catalog/unidades-de-medida',   icon: Ruler,   label: 'Unidades de Medida'    },
   ] : []
 
   return (

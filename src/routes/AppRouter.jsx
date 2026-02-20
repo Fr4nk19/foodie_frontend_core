@@ -11,7 +11,10 @@ import EconomicActivitiesPage        from '../pages/catalog/EconomicActivitiesPa
 import TipoEstablecimientoPage       from '../pages/catalog/TipoEstablecimientoPage'
 import DepartamentosPage             from '../pages/catalog/DepartamentosPage'
 import MunicipiosPage                from '../pages/catalog/MunicipiosPage'
+import UnidadesDeMedidaPage          from '../pages/catalog/UnidadesDeMedidaPage'
 import UsersPage                     from '../pages/users/UsersPage'
+import ProductsPage                  from '../pages/products/ProductsPage'
+import InventoryPage                 from '../pages/inventory/InventoryPage'
 
 export default function AppRouter() {
   return (
@@ -42,6 +45,18 @@ export default function AppRouter() {
                 element={<CompanyUsersPage />}
               />
 
+              {/* Productos por empresa (company_admin + super_admin) */}
+              <Route
+                path="/companies/:companyId/products"
+                element={<ProductsPage />}
+              />
+
+              {/* Inventario por sucursal (branch_manager + company_admin + super_admin) */}
+              <Route
+                path="/companies/:companyId/branches/:branchId/inventory"
+                element={<InventoryPage />}
+              />
+
               {/* Catálogo MH (super admin) */}
               <Route
                 path="/catalog/economic-activities"
@@ -58,6 +73,10 @@ export default function AppRouter() {
               <Route
                 path="/catalog/municipios"
                 element={<MunicipiosPage />}
+              />
+              <Route
+                path="/catalog/unidades-de-medida"
+                element={<UnidadesDeMedidaPage />}
               />
 
               {/* Usuarios globales (super admin) */}
