@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { Plus, Building2, Search, RefreshCw, Activity, X, Users, ChevronRight } from 'lucide-react'
 import { getCompanies, createCompany } from '../../api/companies'
 import { getCatalogActivities, addCompanyActivity } from '../../api/economicActivities'
+import { getDepartamentos } from '../../api/departamentos'
+import { getMunicipios }    from '../../api/municipios'
 import Button              from '../../components/ui/Button'
 import Input               from '../../components/ui/Input'
 import Modal               from '../../components/ui/Modal'
@@ -19,6 +21,8 @@ function CompanyForm({ onSuccess, onCancel }) {
   const [loadingActivities, setLoadingActivities] = useState(true)
   const [activitySearch, setActivitySearch]   = useState('')
   const [selectedIds, setSelectedIds]         = useState([])
+  const [departamentos, setDepartamentos]     = useState([])
+  const [municipios, setMunicipios]           = useState([])
 
   const {
     register,
@@ -31,6 +35,12 @@ function CompanyForm({ onSuccess, onCancel }) {
       .then(({ data }) => setCatalogActivities(data.data ?? data ?? []))
       .catch(() => setCatalogActivities([]))
       .finally(() => setLoadingActivities(false))
+    getDepartamentos({ per_page: 500 })
+      .then(({ data }) => setDepartamentos(data.data ?? []))
+      .catch(() => setDepartamentos([]))
+    getMunicipios({ per_page: 500 })
+      .then(({ data }) => setMunicipios(data.data ?? []))
+      .catch(() => setMunicipios([]))
   }, [])
 
   const filteredActivities = catalogActivities.filter((a) =>
@@ -125,6 +135,35 @@ function CompanyForm({ onSuccess, onCancel }) {
       <div className="grid grid-cols-2 gap-4">
         <Input id="city"  label="Ciudad"  placeholder="Caracas" {...register('city')} />
         <Input id="state" label="Estado"  placeholder="Distrito Capital" {...register('state')} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="cat_mh_departamento_id" className="text-sm font-medium text-gray-700">Departamento MH</label>
+          <select
+            id="cat_mh_departamento_id"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            {...register('cat_mh_departamento_id')}
+          >
+            <option value="">Sin seleccionar</option>
+            {departamentos.map((d) => (
+              <option key={d.id} value={d.id}>{d.codigo} – {d.descripcion}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="cat_mh_municipio_id" className="text-sm font-medium text-gray-700">Municipio MH</label>
+          <select
+            id="cat_mh_municipio_id"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            {...register('cat_mh_municipio_id')}
+          >
+            <option value="">Sin seleccionar</option>
+            {municipios.map((m) => (
+              <option key={m.id} value={m.id}>{m.codigo} – {m.descripcion}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

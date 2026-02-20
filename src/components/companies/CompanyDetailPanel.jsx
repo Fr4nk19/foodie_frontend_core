@@ -8,6 +8,8 @@ import {
 import { getCompany, updateCompany } from '../../api/companies'
 import { getCompanyBranches, createCompanyBranch, updateCompanyBranch, deleteCompanyBranch } from '../../api/branches'
 import { getCompanyUsers, createCompanyUser, updateCompanyUser, deleteCompanyUser } from '../../api/users'
+import { getDepartamentos } from '../../api/departamentos'
+import { getMunicipios }    from '../../api/municipios'
 import {
   getCatalogActivities,
   getCompanyActivities,
@@ -57,8 +59,10 @@ function FormError({ message }) {
 // ─── Tab: General ─────────────────────────────────────────────────────────────
 
 function GeneralTab({ company, onUpdated }) {
-  const [apiError, setApiError] = useState('')
-  const [success,  setSuccess]  = useState(false)
+  const [apiError,      setApiError]      = useState('')
+  const [success,       setSuccess]       = useState(false)
+  const [departamentos, setDepartamentos] = useState([])
+  const [municipios,    setMunicipios]    = useState([])
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting, isDirty } } = useForm({
     defaultValues: buildDefaults(company),
@@ -66,20 +70,31 @@ function GeneralTab({ company, onUpdated }) {
 
   function buildDefaults(c) {
     return {
-      name:     c.name     ?? '',
-      email:    c.email    ?? '',
-      phone:    c.phone    ?? '',
-      address:  c.address  ?? '',
-      city:     c.city     ?? '',
-      state:    c.state    ?? '',
-      country:  c.country  ?? 'Venezuela',
-      timezone: c.timezone ?? 'UTC',
-      plan:     c.plan     ?? 'free',
-      status:   c.status   ?? 'active',
+      name:                   c.name                   ?? '',
+      email:                  c.email                  ?? '',
+      phone:                  c.phone                  ?? '',
+      address:                c.address                ?? '',
+      city:                   c.city                   ?? '',
+      state:                  c.state                  ?? '',
+      country:                c.country                ?? 'Venezuela',
+      timezone:               c.timezone               ?? 'UTC',
+      plan:                   c.plan                   ?? 'free',
+      status:                 c.status                 ?? 'active',
+      cat_mh_departamento_id: c.cat_mh_departamento_id ?? '',
+      cat_mh_municipio_id:    c.cat_mh_municipio_id    ?? '',
     }
   }
 
   useEffect(() => { reset(buildDefaults(company)) }, [company, reset]) // eslint-disable-line
+
+  useEffect(() => {
+    getDepartamentos({ per_page: 500 })
+      .then(({ data }) => setDepartamentos(data.data ?? []))
+      .catch(() => setDepartamentos([]))
+    getMunicipios({ per_page: 500 })
+      .then(({ data }) => setMunicipios(data.data ?? []))
+      .catch(() => setMunicipios([]))
+  }, [])
 
   const onSubmit = async (data) => {
     setApiError('')
@@ -129,6 +144,33 @@ function GeneralTab({ company, onUpdated }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Departamento MH</label>
+          <select
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            {...register('cat_mh_departamento_id')}
+          >
+            <option value="">Sin seleccionar</option>
+            {departamentos.map((d) => (
+              <option key={d.id} value={d.id}>{d.codigo} – {d.descripcion}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Municipio MH</label>
+          <select
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            {...register('cat_mh_municipio_id')}
+          >
+            <option value="">Sin seleccionar</option>
+            {municipios.map((m) => (
+              <option key={m.id} value={m.id}>{m.codigo} – {m.descripcion}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700">Plan</label>
           <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" {...register('plan')}>
             <option value="free">Gratuito</option>
@@ -164,16 +206,29 @@ function GeneralTab({ company, onUpdated }) {
 // ─── Tab: Sucursales ──────────────────────────────────────────────────────────
 
 function BranchForm({ initial, companyId, onSuccess, onCancel }) {
-  const [apiError, setApiError] = useState('')
+  const [apiError,      setApiError]      = useState('')
+  const [departamentos, setDepartamentos] = useState([])
+  const [municipios,    setMunicipios]    = useState([])
   const isEdit = !!initial
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     defaultValues: initial
       ? { name: initial.name, address: initial.address ?? '', city: initial.city ?? '',
           state: initial.state ?? '', phone: initial.phone ?? '', email: initial.email ?? '',
-          status: initial.status ?? 'active', is_default: initial.is_default ?? false }
-      : { status: 'active', is_default: false },
+          status: initial.status ?? 'active', is_default: initial.is_default ?? false,
+          cat_mh_departamento_id: initial.cat_mh_departamento_id ?? '',
+          cat_mh_municipio_id:    initial.cat_mh_municipio_id    ?? '' }
+      : { status: 'active', is_default: false, cat_mh_departamento_id: '', cat_mh_municipio_id: '' },
   })
+
+  useEffect(() => {
+    getDepartamentos({ per_page: 500 })
+      .then(({ data }) => setDepartamentos(data.data ?? []))
+      .catch(() => setDepartamentos([]))
+    getMunicipios({ per_page: 500 })
+      .then(({ data }) => setMunicipios(data.data ?? []))
+      .catch(() => setMunicipios([]))
+  }, [])
 
   const onSubmit = async (data) => {
     setApiError('')
@@ -203,6 +258,30 @@ function BranchForm({ initial, companyId, onSuccess, onCancel }) {
         <Input id="b-state" label="Estado"   {...register('state')} />
         <Input id="b-phone" label="Teléfono" {...register('phone')} />
         <Input id="b-email" label="Correo"   type="email" {...register('email')} />
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Departamento MH</label>
+          <select
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            {...register('cat_mh_departamento_id')}
+          >
+            <option value="">Sin seleccionar</option>
+            {departamentos.map((d) => (
+              <option key={d.id} value={d.id}>{d.codigo} – {d.descripcion}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Municipio MH</label>
+          <select
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            {...register('cat_mh_municipio_id')}
+          >
+            <option value="">Sin seleccionar</option>
+            {municipios.map((m) => (
+              <option key={m.id} value={m.id}>{m.codigo} – {m.descripcion}</option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3 items-center">
         <div className="flex flex-col gap-1">
