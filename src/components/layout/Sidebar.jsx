@@ -23,10 +23,19 @@ export default function Sidebar() {
         icon:  Activity,
         label: 'Act. Económicas',
       },
+      {
+        to:    `/companies/${user.company_id}/users`,
+        icon:  Users,
+        label: 'Usuarios',
+      },
+    ] : []),
+
+    // Super admin — usuarios globales
+    ...(isSuperAdmin ? [
+      { to: '/users', icon: Users, label: 'Usuarios' },
     ] : []),
 
     // Coming soon
-    { to: '/users',    icon: Users,    label: 'Usuarios',      soon: true },
     { to: '/settings', icon: Settings, label: 'Configuración', soon: true },
   ]
 

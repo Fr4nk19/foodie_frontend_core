@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Plus, Building2, Search, RefreshCw, Activity, X } from 'lucide-react'
+import { Plus, Building2, Search, RefreshCw, Activity, X, Users } from 'lucide-react'
 import { getCompanies, createCompany } from '../../api/companies'
 import { getCatalogActivities, addCompanyActivity } from '../../api/economicActivities'
 import Button  from '../../components/ui/Button'
@@ -376,7 +376,14 @@ export default function CompaniesPage() {
                       {c.created_at ? new Date(c.created_at).toLocaleDateString('es-VE') : '—'}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1">
+                        <Link
+                          to={`/companies/${c.id}/users`}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                          title="Usuarios"
+                        >
+                          <Users size={15} />
+                        </Link>
                         <Link
                           to={`/companies/${c.id}/economic-activities`}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition"

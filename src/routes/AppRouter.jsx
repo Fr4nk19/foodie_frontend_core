@@ -6,7 +6,9 @@ import LoginPage           from '../pages/auth/LoginPage'
 import DashboardPage       from '../pages/DashboardPage'
 import CompaniesPage       from '../pages/companies/CompaniesPage'
 import CompanyEconomicActivitiesPage from '../pages/companies/CompanyEconomicActivitiesPage'
+import CompanyUsersPage              from '../pages/companies/CompanyUsersPage'
 import EconomicActivitiesPage        from '../pages/catalog/EconomicActivitiesPage'
+import UsersPage                     from '../pages/users/UsersPage'
 
 export default function AppRouter() {
   return (
@@ -31,11 +33,20 @@ export default function AppRouter() {
                 element={<CompanyEconomicActivitiesPage />}
               />
 
+              {/* Usuarios por empresa (company_admin + super_admin) */}
+              <Route
+                path="/companies/:companyId/users"
+                element={<CompanyUsersPage />}
+              />
+
               {/* Catálogo MH (super admin) */}
               <Route
                 path="/catalog/economic-activities"
                 element={<EconomicActivitiesPage />}
               />
+
+              {/* Usuarios globales (super admin) */}
+              <Route path="/users" element={<UsersPage />} />
             </Route>
           </Route>
 
