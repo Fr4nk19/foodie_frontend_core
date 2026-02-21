@@ -5,6 +5,7 @@ import Layout              from '../components/layout/Layout'
 import LoginPage           from '../pages/auth/LoginPage'
 import DashboardPage       from '../pages/DashboardPage'
 import CompaniesPage       from '../pages/companies/CompaniesPage'
+import CompanyDetailPage             from '../pages/companies/CompanyDetailPage'
 import CompanyEconomicActivitiesPage from '../pages/companies/CompanyEconomicActivitiesPage'
 import CompanyUsersPage              from '../pages/companies/CompanyUsersPage'
 import EconomicActivitiesPage        from '../pages/catalog/EconomicActivitiesPage'
@@ -32,6 +33,7 @@ export default function AppRouter() {
 
               {/* Empresas (super admin) */}
               <Route path="/companies" element={<CompaniesPage />} />
+              <Route path="/companies/:companyId" element={<CompanyDetailPage />} />
 
               {/* Actividades económicas por empresa (company_admin + super_admin) */}
               <Route
