@@ -378,7 +378,7 @@ export default function ProductsPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-gray-700 font-mono text-xs">
-                      L {parseFloat(p.precio ?? 0).toFixed(2)}
+                      $ {parseFloat(p.precio ?? 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 text-gray-500 text-xs">
                       {p.unidad_de_medida?.codigo ?? '—'}
