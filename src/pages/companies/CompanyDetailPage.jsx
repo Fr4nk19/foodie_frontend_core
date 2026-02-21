@@ -5,6 +5,7 @@ import {
   ArrowLeft, Building2, GitBranch, Users, Activity,
   Plus, Pencil, Trash2, Star, Power, Save, RefreshCw,
   MapPin, Warehouse, AlertTriangle, Package, ChevronRight,
+  Tag, Search,
 } from 'lucide-react'
 import { getCompany, updateCompany }                          from '../../api/companies'
 import { getCompanyBranches, createCompanyBranch, updateCompanyBranch, deleteCompanyBranch } from '../../api/branches'
@@ -12,14 +13,16 @@ import { getCompanyUsers, createCompanyUser, updateCompanyUser, deleteCompanyUse
 import { getDepartamentos }  from '../../api/departamentos'
 import { getMunicipios }     from '../../api/municipios'
 import { getCatalogActivities, getCompanyActivities, addCompanyActivity, updateCompanyActivity, removeCompanyActivity } from '../../api/economicActivities'
-import { getCompanyProducts } from '../../api/products'
+import { getCompanyProducts, createCompanyProduct, updateCompanyProduct, deleteCompanyProduct } from '../../api/products'
+import { getProductCategories, createProductCategory, updateProductCategory, deleteProductCategory } from '../../api/productCategories'
 import { getBranchInventory, addBranchInventory, updateBranchInventory, deleteBranchInventory } from '../../api/inventory'
 import { getUnidadesDeMedida } from '../../api/unidadesDeMedida'
-import Button   from '../../components/ui/Button'
-import Badge    from '../../components/ui/Badge'
-import Spinner  from '../../components/ui/Spinner'
-import Modal    from '../../components/ui/Modal'
-import Input    from '../../components/ui/Input'
+import Button     from '../../components/ui/Button'
+import Badge      from '../../components/ui/Badge'
+import Spinner    from '../../components/ui/Spinner'
+import Modal      from '../../components/ui/Modal'
+import Input      from '../../components/ui/Input'
+import Pagination from '../../components/ui/Pagination'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1051,6 +1054,514 @@ function ActivitiesTab({ companyId }) {
   )
 }
 
+// ─── Tab: Productos y Categorías ──────────────────────────────────────────────
+
+function CategoryBadge({ categoria }) {
+  if (!categoria) return <span className="text-gray-300 text-xs">—</span>
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
+      style={
+        categoria.color
+          ? { backgroundColor: categoria.color + '22', borderColor: categoria.color + '66', color: categoria.color }
+          : { backgroundColor: '#f1f5f9', borderColor: '#cbd5e1', color: '#475569' }
+      }
+    >
+      <Tag size={10} />
+      {categoria.nombre}
+    </span>
+  )
+}
+
+function CategoryForm({ companyId, initial, onSuccess, onCancel }) {
+  const [apiError, setApiError] = useState('')
+  const isEdit = !!initial
+
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+    defaultValues: initial
+      ? { nombre: initial.nombre, descripcion: initial.descripcion ?? '', color: initial.color ?? '#6366f1', status: initial.status ?? 'active' }
+      : { nombre: '', descripcion: '', color: '#6366f1', status: 'active' },
+  })
+
+  const onSubmit = async (data) => {
+    setApiError('')
+    try {
+      if (isEdit) await updateProductCategory(companyId, initial.id, data)
+      else        await createProductCategory(companyId, data)
+      onSuccess()
+    } catch (err) {
+      const fe = err.response?.data?.errors
+      setApiError(fe ? Object.values(fe)[0]?.[0] : (err.response?.data?.message ?? 'Error.'))
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+      <FormError message={apiError} />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <Input id="cat-nombre" label="Nombre *" error={errors.nombre?.message}
+            {...register('nombre', { required: 'El nombre es obligatorio' })} />
+        </div>
+        <div className="col-span-2">
+          <Input id="cat-desc" label="Descripción" {...register('descripcion')} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Color</label>
+          <div className="flex items-center gap-2">
+            <input type="color" {...register('color')}
+              className="h-9 w-14 rounded border border-gray-300 cursor-pointer" />
+            <span className="text-xs text-gray-400">Color de la categoría</span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Estado</label>
+          <select {...register('status')}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="active">Activo</option>
+            <option value="inactive">Inactivo</option>
+          </select>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" type="button" size="sm" onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" size="sm" loading={isSubmitting}>{isEdit ? 'Guardar' : 'Crear categoría'}</Button>
+      </div>
+    </form>
+  )
+}
+
+function CompanyProductForm({ companyId, categories, initial, onSuccess, onCancel }) {
+  const [apiError, setApiError]               = useState('')
+  const [unidades, setUnidades]               = useState([])
+  const [loadingUnidades, setLoadingUnidades] = useState(true)
+  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newCatName, setNewCatName]           = useState('')
+  const [newCatColor, setNewCatColor]         = useState('#6366f1')
+  const [savingCat, setSavingCat]             = useState(false)
+  const [localCategories, setLocalCategories] = useState(categories)
+  const isEdit = !!initial
+
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm({
+    defaultValues: initial
+      ? { ...initial, product_category_id: initial.product_category_id ?? '', track_stock: initial.track_stock ?? true }
+      : { codigo: '', nombre: '', descripcion: '', precio: '', peso: '', tamanio: '', cat_mh_unidad_de_medida_id: '', product_category_id: '', status: 'active', track_stock: true },
+  })
+
+  const trackStock = watch('track_stock')
+
+  useEffect(() => {
+    getUnidadesDeMedida({ per_page: 100 })
+      .then(({ data }) => setUnidades(data.data ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingUnidades(false))
+  }, [])
+
+  useEffect(() => { setLocalCategories(categories) }, [categories])
+
+  const handleCreateCategory = async () => {
+    if (!newCatName.trim()) return
+    setSavingCat(true)
+    try {
+      const res = await createProductCategory(companyId, { nombre: newCatName.trim(), color: newCatColor })
+      setLocalCategories((prev) => [res.data.data, ...prev])
+      setNewCatName('')
+      setShowNewCategory(false)
+    } catch { /* ignore */ } finally { setSavingCat(false) }
+  }
+
+  const onSubmit = async (raw) => {
+    setApiError('')
+    const payload = {
+      ...raw,
+      cat_mh_unidad_de_medida_id: raw.cat_mh_unidad_de_medida_id || undefined,
+      product_category_id:        raw.product_category_id || undefined,
+      precio:                     raw.precio !== '' ? raw.precio : undefined,
+      peso:                       raw.peso   !== '' ? raw.peso   : undefined,
+      track_stock:                raw.track_stock === true || raw.track_stock === 'true',
+    }
+    try {
+      if (isEdit) await updateCompanyProduct(companyId, initial.id, payload)
+      else        await createCompanyProduct(companyId, payload)
+      onSuccess()
+    } catch (err) {
+      const fe = err.response?.data?.errors
+      setApiError(fe ? Object.values(fe)[0]?.[0] : (err.response?.data?.message ?? 'Error al guardar.'))
+    }
+  }
+
+  if (loadingUnidades) return <div className="py-8"><Spinner /></div>
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <FormError message={apiError} />
+      <div className="grid grid-cols-2 gap-4">
+        <Input id="p-codigo" label="SKU / Código" placeholder="Ej: PROD-001" {...register('codigo')} />
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Unidad de medida *</label>
+          <select {...register('cat_mh_unidad_de_medida_id', { required: 'La unidad de medida es obligatoria' })}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">Seleccionar unidad...</option>
+            {unidades.map((u) => <option key={u.id} value={u.id}>{u.codigo} – {u.descripcion}</option>)}
+          </select>
+          {errors.cat_mh_unidad_de_medida_id && <p className="text-xs text-red-500">{errors.cat_mh_unidad_de_medida_id.message}</p>}
+        </div>
+      </div>
+      <Input id="p-nombre" label="Nombre *" placeholder="Ej: Hamburguesa Clásica" error={errors.nombre?.message}
+        {...register('nombre', { required: 'El nombre es obligatorio' })} />
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-gray-700">Descripción</label>
+        <textarea rows={2} placeholder="Descripción del producto..." {...register('descripcion')}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Input id="p-precio" label="Precio *" type="number" step="0.01" min="0" placeholder="0.00"
+          error={errors.precio?.message}
+          {...register('precio', { required: 'El precio es obligatorio', min: { value: 0, message: 'No puede ser negativo' } })} />
+        <Input id="p-peso" label="Peso (kg)" type="number" step="0.001" min="0" placeholder="0.000" {...register('peso')} />
+        <Input id="p-tamanio" label="Tamaño" placeholder="Ej: XL, 30x20cm" {...register('tamanio')} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-gray-700">Categoría</label>
+          <button type="button" onClick={() => setShowNewCategory((v) => !v)}
+            className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+            {showNewCategory ? 'Cancelar' : '+ Nueva categoría'}
+          </button>
+        </div>
+        {showNewCategory && (
+          <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <input type="text" placeholder="Nombre de la categoría..." value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <input type="color" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)}
+              className="h-8 w-10 rounded border border-gray-300 cursor-pointer" />
+            <Button type="button" size="sm" loading={savingCat} onClick={handleCreateCategory}>Crear</Button>
+          </div>
+        )}
+        <select {...register('product_category_id')}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="">Sin categoría</option>
+          {localCategories.map((cat) => <option key={cat.id} value={cat.id}>{cat.nombre}</option>)}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Estado</label>
+          <select {...register('status')}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="active">Activo</option>
+            <option value="inactive">Inactivo</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700">Control de stock</span>
+          <label className="flex items-center gap-3 mt-1 cursor-pointer select-none">
+            <div className="relative">
+              <input type="checkbox" className="sr-only" {...register('track_stock')} />
+              <div className={`w-10 h-5 rounded-full transition-colors ${trackStock ? 'bg-brand-600' : 'bg-gray-300'}`} />
+              <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${trackStock ? 'translate-x-5' : 'translate-x-0'}`} />
+            </div>
+            <span className="text-sm text-gray-600">{trackStock ? 'Requiere stock' : 'Sin control de stock'}</span>
+          </label>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" type="button" size="sm" onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" size="sm" loading={isSubmitting}>{isEdit ? 'Guardar cambios' : 'Crear producto'}</Button>
+      </div>
+    </form>
+  )
+}
+
+function ProductsTab({ companyId }) {
+  // ── Categories state ──
+  const [categories,    setCategories]    = useState([])
+  const [catsLoading,   setCatsLoading]   = useState(true)
+  const [showAddCat,    setShowAddCat]    = useState(false)
+  const [editingCat,    setEditingCat]    = useState(null)
+  const [deletingCat,   setDeletingCat]   = useState(null)
+  const [deleteCatLoad, setDeleteCatLoad] = useState(false)
+
+  // ── Products state ──
+  const [products,       setProducts]       = useState([])
+  const [meta,           setMeta]           = useState(null)
+  const [page,           setPage]           = useState(1)
+  const [loading,        setLoading]        = useState(true)
+  const [search,         setSearch]         = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [showCreateProd, setShowCreateProd] = useState(false)
+  const [editingProd,    setEditingProd]    = useState(null)
+  const [deletingProd,   setDeletingProd]   = useState(null)
+  const [deleteProdLoad, setDeleteProdLoad] = useState(false)
+
+  const loadCategories = useCallback(() => {
+    setCatsLoading(true)
+    getProductCategories(companyId, { per_page: 200 })
+      .then(({ data }) => setCategories(data.data ?? []))
+      .catch(() => {})
+      .finally(() => setCatsLoading(false))
+  }, [companyId])
+
+  const loadProducts = useCallback(() => {
+    setLoading(true)
+    getCompanyProducts(companyId, { page, per_page: 15 })
+      .then(({ data }) => { setProducts(data.data ?? []); setMeta(data.meta ?? null) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [companyId, page])
+
+  useEffect(() => { loadCategories() }, [loadCategories])
+  useEffect(() => { loadProducts() },   [loadProducts])
+
+  const filtered = products.filter((p) => {
+    const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || (p.codigo ?? '').toLowerCase().includes(search.toLowerCase())
+    const matchCat    = !filterCategory || String(p.product_category_id) === String(filterCategory)
+    return matchSearch && matchCat
+  })
+
+  const handleDeleteCat = async () => {
+    setDeleteCatLoad(true)
+    try { await deleteProductCategory(companyId, deletingCat.id); setDeletingCat(null); loadCategories(); loadProducts() }
+    catch { /* ignore */ } finally { setDeleteCatLoad(false) }
+  }
+
+  const handleDeleteProd = async () => {
+    setDeleteProdLoad(true)
+    try { await deleteCompanyProduct(companyId, deletingProd.id); setDeletingProd(null); loadProducts() }
+    catch { /* ignore */ } finally { setDeleteProdLoad(false) }
+  }
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Categories section ───────────────────────────────── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Tag size={15} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">Categorías</span>
+            {!catsLoading && <span className="text-xs text-gray-400">({categories.length})</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={loadCategories} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition" title="Recargar">
+              <RefreshCw size={13} />
+            </button>
+            <Button size="sm" onClick={() => { setShowAddCat(true); setEditingCat(null) }}>
+              <Plus size={13} /> Nueva categoría
+            </Button>
+          </div>
+        </div>
+
+        {showAddCat && (
+          <div className="border border-brand-200 bg-brand-50/20 rounded-xl p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-3">Nueva categoría</p>
+            <CategoryForm companyId={companyId}
+              onSuccess={() => { setShowAddCat(false); loadCategories() }}
+              onCancel={() => setShowAddCat(false)} />
+          </div>
+        )}
+
+        {catsLoading ? (
+          <div className="py-4"><Spinner /></div>
+        ) : categories.length === 0 && !showAddCat ? (
+          <div className="py-8 text-center border border-dashed border-gray-200 rounded-xl">
+            <Tag size={24} className="mx-auto text-gray-200 mb-2" />
+            <p className="text-sm text-gray-400">Aún no hay categorías</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {categories.map((cat) => (
+              <div key={cat.id}>
+                {editingCat?.id === cat.id ? (
+                  <div className="border border-brand-200 bg-brand-50/20 rounded-xl p-4 w-80">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Editar: {cat.nombre}</p>
+                    <CategoryForm companyId={companyId} initial={cat}
+                      onSuccess={() => { setEditingCat(null); loadCategories() }}
+                      onCancel={() => setEditingCat(null)} />
+                  </div>
+                ) : (
+                  <div className="group flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-100 bg-white hover:bg-gray-50 transition">
+                    <span className="inline-flex items-center gap-1.5 text-sm font-medium"
+                      style={cat.color ? { color: cat.color } : { color: '#475569' }}>
+                      <span className="w-3 h-3 rounded-full border border-current/30 shrink-0"
+                        style={{ backgroundColor: cat.color ?? '#6366f1' }} />
+                      {cat.nombre}
+                    </span>
+                    <Badge label={cat.status === 'active' ? 'Activo' : 'Inactivo'} type={cat.status === 'active' ? 'active' : 'inactive'} />
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+                      <button onClick={() => { setEditingCat(cat); setShowAddCat(false) }}
+                        className="p-1 rounded-lg text-gray-300 hover:text-brand-600 hover:bg-brand-50 transition" title="Editar">
+                        <Pencil size={12} />
+                      </button>
+                      <button onClick={() => setDeletingCat(cat)}
+                        className="p-1 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition" title="Eliminar">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-gray-100" />
+
+      {/* ── Products section ─────────────────────────────────── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Package size={15} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">Productos</span>
+            {!loading && <span className="text-xs text-gray-400">({meta?.total ?? products.length})</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={loadProducts} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition" title="Recargar">
+              <RefreshCw size={13} />
+            </button>
+            <Button size="sm" onClick={() => setShowCreateProd(true)}>
+              <Plus size={13} /> Nuevo producto
+            </Button>
+          </div>
+        </div>
+
+        {/* Search + category filter */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="text" placeholder="Buscar por nombre o código..."
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          {categories.length > 0 && (
+            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
+              className="py-2 px-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-gray-600">
+              <option value="">Todas las categorías</option>
+              {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.nombre}</option>)}
+            </select>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="py-12"><Spinner /></div>
+        ) : filtered.length === 0 ? (
+          <div className="py-12 text-center border border-dashed border-gray-200 rounded-xl">
+            <Package size={32} className="mx-auto text-gray-200 mb-2" />
+            <p className="text-sm text-gray-400">
+              {search || filterCategory ? 'Sin resultados para tu búsqueda' : 'Aún no hay productos registrados'}
+            </p>
+            {!search && !filterCategory && (
+              <Button variant="secondary" size="sm" className="mt-3" onClick={() => setShowCreateProd(true)}>
+                <Plus size={13} /> Crear primer producto
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-gray-100">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-left">
+                  <th className="px-4 py-2.5 font-medium text-gray-500 w-28">SKU</th>
+                  <th className="px-4 py-2.5 font-medium text-gray-500">Nombre</th>
+                  <th className="px-4 py-2.5 font-medium text-gray-500 w-32">Categoría</th>
+                  <th className="px-4 py-2.5 font-medium text-gray-500 w-24 text-right">Precio</th>
+                  <th className="px-4 py-2.5 font-medium text-gray-500 w-24">Estado</th>
+                  <th className="px-4 py-2.5 font-medium text-gray-500 w-20 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50 transition">
+                    <td className="px-4 py-3">
+                      {p.codigo
+                        ? <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">{p.codigo}</span>
+                        : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-800">{p.nombre}</p>
+                      {p.descripcion && <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{p.descripcion}</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <CategoryBadge categoria={p.categoria} />
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-xs text-gray-700">
+                      $ {parseFloat(p.precio ?? 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge label={p.status === 'active' ? 'Activo' : 'Inactivo'} type={p.status === 'active' ? 'active' : 'inactive'} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setEditingProd(p)}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-brand-600 hover:bg-brand-50 transition" title="Editar">
+                          <Pencil size={13} />
+                        </button>
+                        <button onClick={() => setDeletingProd(p)}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition" title="Eliminar">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {meta && (
+          <Pagination meta={meta} onPage={(p) => setPage(p)} onPerPage={() => setPage(1)} />
+        )}
+      </div>
+
+      {/* ── Modals ───────────────────────────────────────────── */}
+      <Modal open={showCreateProd} onClose={() => setShowCreateProd(false)} title="Nuevo Producto" size="lg">
+        <CompanyProductForm companyId={companyId} categories={categories}
+          onSuccess={() => { setShowCreateProd(false); loadProducts() }}
+          onCancel={() => setShowCreateProd(false)} />
+      </Modal>
+
+      <Modal open={!!editingProd} onClose={() => setEditingProd(null)} title="Editar Producto" size="lg">
+        {editingProd && (
+          <CompanyProductForm companyId={companyId} categories={categories} initial={editingProd}
+            onSuccess={() => { setEditingProd(null); loadProducts() }}
+            onCancel={() => setEditingProd(null)} />
+        )}
+      </Modal>
+
+      <Modal open={!!deletingProd} onClose={() => setDeletingProd(null)} title="Eliminar Producto" size="sm">
+        {deletingProd && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              ¿Eliminar el producto <span className="font-semibold">{deletingProd.nombre}</span>? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setDeletingProd(null)}>Cancelar</Button>
+              <Button variant="danger" onClick={handleDeleteProd} loading={deleteProdLoad}>Eliminar</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!deletingCat} onClose={() => setDeletingCat(null)} title="Eliminar categoría" size="sm">
+        {deletingCat && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              ¿Eliminar la categoría <span className="font-semibold">{deletingCat.nombre}</span>? Los productos de esta categoría quedarán sin categoría.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setDeletingCat(null)}>Cancelar</Button>
+              <Button variant="danger" onClick={handleDeleteCat} loading={deleteCatLoad}>Eliminar</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -1058,6 +1569,7 @@ const TABS = [
   { id: 'branches',   label: 'Sucursales',          icon: GitBranch  },
   { id: 'users',      label: 'Usuarios',            icon: Users      },
   { id: 'activities', label: 'Act. Económicas',     icon: Activity   },
+  { id: 'products',   label: 'Productos',           icon: Package    },
 ]
 
 export default function CompanyDetailPage() {
@@ -1152,6 +1664,7 @@ export default function CompanyDetailPage() {
           {activeTab === 'branches'   && <BranchesTab   companyId={company.id} />}
           {activeTab === 'users'      && <UsersTab      companyId={company.id} />}
           {activeTab === 'activities' && <ActivitiesTab companyId={company.id} />}
+          {activeTab === 'products'   && <ProductsTab   companyId={company.id} />}
         </div>
       </div>
     </div>
