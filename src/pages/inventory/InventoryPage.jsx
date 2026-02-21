@@ -394,7 +394,7 @@ export default function InventoryPage() {
                         {inv.cantidad_maxima != null ? parseFloat(inv.cantidad_maxima).toFixed(3) : '—'}
                       </td>
                       <td className="px-6 py-4 text-right font-mono text-xs text-gray-700">
-                        {inv.costo_unitario != null ? `L ${parseFloat(inv.costo_unitario).toFixed(2)}` : '—'}
+                        {inv.costo_unitario != null ? `$ ${parseFloat(inv.costo_unitario).toFixed(2)}` : '—'}
                       </td>
                       <td className="px-6 py-4 text-center">
                         {isLow ? (

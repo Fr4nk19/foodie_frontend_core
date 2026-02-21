@@ -347,7 +347,7 @@ function InventorySection({ companyId, branchId }) {
                           {inv.cantidad_maxima != null ? parseFloat(inv.cantidad_maxima).toFixed(3) : '—'}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-xs text-gray-600">
-                          {inv.costo_unitario != null ? `L ${parseFloat(inv.costo_unitario).toFixed(2)}` : '—'}
+                          {inv.costo_unitario != null ? `$ ${parseFloat(inv.costo_unitario).toFixed(2)}` : '—'}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
