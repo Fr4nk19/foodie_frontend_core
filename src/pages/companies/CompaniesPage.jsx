@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import {
@@ -666,9 +666,8 @@ export default function CompaniesPage() {
               </thead>
               <tbody>
                 {filtered.map((c) => (
-                  <>
+                  <Fragment key={c.id}>
                     <tr
-                      key={c.id}
                       onClick={() => toggleExpand(c.id)}
                       className={`border-b border-gray-50 hover:bg-brand-50/40 transition cursor-pointer ${expandedId === c.id ? 'bg-brand-50/30' : ''}`}
                     >
@@ -711,7 +710,7 @@ export default function CompaniesPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
