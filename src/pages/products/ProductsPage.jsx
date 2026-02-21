@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Plus, Package, Search, RefreshCw, Pencil, Trash2, ArrowLeft } from 'lucide-react'
+import { Plus, Package, Search, RefreshCw, Pencil, Trash2, ArrowLeft, Tag } from 'lucide-react'
 import { getCompanyProducts, createCompanyProduct, updateCompanyProduct, deleteCompanyProduct } from '../../api/products'
+import { getProductCategories, createProductCategory } from '../../api/productCategories'
 import { getUnidadesDeMedida } from '../../api/unidadesDeMedida'
 import { useAuth }    from '../../context/AuthContext'
 import Button         from '../../components/ui/Button'
@@ -12,29 +13,62 @@ import Spinner        from '../../components/ui/Spinner'
 import Pagination     from '../../components/ui/Pagination'
 import Badge          from '../../components/ui/Badge'
 
+// ─── Category badge ───────────────────────────────────────────────────────────
+function CategoryBadge({ categoria }) {
+  if (!categoria) return <span className="text-gray-300 text-xs">—</span>
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
+      style={
+        categoria.color
+          ? { backgroundColor: categoria.color + '22', borderColor: categoria.color + '66', color: categoria.color }
+          : { backgroundColor: '#f1f5f9', borderColor: '#cbd5e1', color: '#475569' }
+      }
+    >
+      <Tag size={10} />
+      {categoria.nombre}
+    </span>
+  )
+}
+
 // ─── Product form (create / edit) ─────────────────────────────────────────────
 function ProductForm({ companyId, initial, onSuccess, onCancel }) {
-  const [apiError, setApiError]         = useState('')
-  const [unidades, setUnidades]         = useState([])
+  const [apiError, setApiError]               = useState('')
+  const [unidades, setUnidades]               = useState([])
+  const [categories, setCategories]           = useState([])
   const [loadingUnidades, setLoadingUnidades] = useState(true)
+  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newCatName, setNewCatName]           = useState('')
+  const [newCatColor, setNewCatColor]         = useState('#6366f1')
+  const [savingCat, setSavingCat]             = useState(false)
 
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
-    defaultValues: initial ?? {
-      codigo: '',
-      nombre: '',
-      descripcion: '',
-      precio: '',
-      peso: '',
-      tamanio: '',
-      cat_mh_unidad_de_medida_id: '',
-      status: 'active',
-    },
+    defaultValues: initial
+      ? {
+          ...initial,
+          product_category_id: initial.product_category_id ?? '',
+          track_stock: initial.track_stock ?? true,
+        }
+      : {
+          codigo: '',
+          nombre: '',
+          descripcion: '',
+          precio: '',
+          peso: '',
+          tamanio: '',
+          cat_mh_unidad_de_medida_id: '',
+          product_category_id: '',
+          status: 'active',
+          track_stock: true,
+        },
   })
 
+  const trackStock = watch('track_stock')
   const isEdit = !!initial
 
   useEffect(() => {
@@ -42,15 +76,39 @@ function ProductForm({ companyId, initial, onSuccess, onCancel }) {
       .then(({ data }) => setUnidades(data.data ?? []))
       .catch(() => {})
       .finally(() => setLoadingUnidades(false))
-  }, [])
+    getProductCategories(companyId, { per_page: 200 })
+      .then(({ data }) => setCategories(data.data ?? []))
+      .catch(() => {})
+  }, [companyId])
+
+  const handleCreateCategory = async () => {
+    if (!newCatName.trim()) return
+    setSavingCat(true)
+    try {
+      const res = await createProductCategory(companyId, {
+        nombre: newCatName.trim(),
+        color: newCatColor,
+      })
+      const created = res.data.data
+      setCategories((prev) => [created, ...prev])
+      setNewCatName('')
+      setShowNewCategory(false)
+    } catch {
+      // ignore, user can retry
+    } finally {
+      setSavingCat(false)
+    }
+  }
 
   const onSubmit = async (raw) => {
     setApiError('')
     const payload = {
       ...raw,
       cat_mh_unidad_de_medida_id: raw.cat_mh_unidad_de_medida_id || undefined,
+      product_category_id: raw.product_category_id || undefined,
       precio: raw.precio !== '' ? raw.precio : undefined,
       peso:   raw.peso   !== '' ? raw.peso   : undefined,
+      track_stock: raw.track_stock === true || raw.track_stock === 'true',
     }
     try {
       if (isEdit) {
@@ -162,18 +220,106 @@ function ProductForm({ companyId, initial, onSuccess, onCancel }) {
         />
       </div>
 
+      {/* Categoría */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="status" className="text-sm font-medium text-gray-700">
-          Estado
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="product_category_id" className="text-sm font-medium text-gray-700">
+            Categoría
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowNewCategory((v) => !v)}
+            className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+          >
+            {showNewCategory ? 'Cancelar' : '+ Nueva categoría'}
+          </button>
+        </div>
+
+        {showNewCategory && (
+          <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <input
+              type="text"
+              placeholder="Nombre de la categoría..."
+              value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <input
+              type="color"
+              value={newCatColor}
+              onChange={(e) => setNewCatColor(e.target.value)}
+              className="h-8 w-10 rounded border border-gray-300 cursor-pointer"
+              title="Color de la categoría"
+            />
+            <Button
+              type="button"
+              size="sm"
+              loading={savingCat}
+              onClick={handleCreateCategory}
+            >
+              Crear
+            </Button>
+          </div>
+        )}
+
         <select
-          id="status"
-          {...register('status')}
+          id="product_category_id"
+          {...register('product_category_id')}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
-          <option value="active">Activo</option>
-          <option value="inactive">Inactivo</option>
+          <option value="">Sin categoría</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.nombre}
+            </option>
+          ))}
         </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="status" className="text-sm font-medium text-gray-700">
+            Estado
+          </label>
+          <select
+            id="status"
+            {...register('status')}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="active">Activo</option>
+            <option value="inactive">Inactivo</option>
+          </select>
+        </div>
+
+        {/* track_stock toggle */}
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700">Control de stock</span>
+          <label className="flex items-center gap-3 mt-1 cursor-pointer select-none">
+            <div className="relative">
+              <input
+                type="checkbox"
+                className="sr-only"
+                {...register('track_stock')}
+              />
+              <div
+                className={`w-10 h-5 rounded-full transition-colors ${
+                  trackStock ? 'bg-brand-600' : 'bg-gray-300'
+                }`}
+              />
+              <div
+                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                  trackStock ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </div>
+            <span className="text-sm text-gray-600">
+              {trackStock ? 'Requiere stock' : 'Sin control de stock'}
+            </span>
+          </label>
+          <p className="text-xs text-gray-400 leading-tight">
+            Desactiva para productos que se venden sin necesidad de stock (ej: platos de comida).
+          </p>
+        </div>
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
@@ -218,16 +364,18 @@ export default function ProductsPage() {
 
   const resolvedCompanyId = companyId ?? user?.company_id
 
-  const [items, setItems]                 = useState([])
-  const [meta, setMeta]                   = useState(null)
-  const [page, setPage]                   = useState(1)
-  const [perPage, setPerPage]             = useState(15)
-  const [loading, setLoading]             = useState(true)
-  const [search, setSearch]               = useState('')
-  const [showCreate, setShowCreate]       = useState(false)
-  const [editing, setEditing]             = useState(null)
-  const [deleting, setDeleting]           = useState(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [items, setItems]                   = useState([])
+  const [meta, setMeta]                     = useState(null)
+  const [page, setPage]                     = useState(1)
+  const [perPage, setPerPage]               = useState(15)
+  const [loading, setLoading]               = useState(true)
+  const [search, setSearch]                 = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [categories, setCategories]         = useState([])
+  const [showCreate, setShowCreate]         = useState(false)
+  const [editing, setEditing]               = useState(null)
+  const [deleting, setDeleting]             = useState(null)
+  const [deleteLoading, setDeleteLoading]   = useState(false)
 
   const load = useCallback(() => {
     if (!resolvedCompanyId) return
@@ -248,11 +396,22 @@ export default function ProductsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const filtered = items.filter(
-    (p) =>
+  useEffect(() => {
+    if (!resolvedCompanyId) return
+    getProductCategories(resolvedCompanyId, { per_page: 200 })
+      .then(({ data }) => setCategories(data.data ?? []))
+      .catch(() => {})
+  }, [resolvedCompanyId])
+
+  const filtered = items.filter((p) => {
+    const matchSearch =
       p.nombre.toLowerCase().includes(search.toLowerCase()) ||
       (p.codigo ?? '').toLowerCase().includes(search.toLowerCase())
-  )
+    const matchCategory =
+      !filterCategory ||
+      String(p.product_category_id) === String(filterCategory)
+    return matchSearch && matchCategory
+  })
 
   const handleDelete = async () => {
     setDeleteLoading(true)
@@ -310,8 +469,8 @@ export default function ProductsPage() {
       {/* Table card */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         {/* Toolbar */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -321,6 +480,18 @@ export default function ProductsPage() {
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
+          {categories.length > 0 && (
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="py-2 px-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-gray-600"
+            >
+              <option value="">Todas las categorías</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.nombre}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Table */}
@@ -330,9 +501,9 @@ export default function ProductsPage() {
           <div className="py-16 text-center">
             <Package size={40} className="mx-auto text-gray-200 mb-3" />
             <p className="text-gray-400 text-sm">
-              {search ? 'Sin resultados para tu búsqueda' : 'Aún no hay productos registrados'}
+              {search || filterCategory ? 'Sin resultados para tu búsqueda' : 'Aún no hay productos registrados'}
             </p>
-            {!search && canEdit && (
+            {!search && !filterCategory && canEdit && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -351,8 +522,9 @@ export default function ProductsPage() {
                 <tr className="border-b border-gray-100 text-left bg-gray-50">
                   <th className="px-6 py-3 font-medium text-gray-500 w-32">SKU</th>
                   <th className="px-6 py-3 font-medium text-gray-500">Nombre</th>
+                  <th className="px-6 py-3 font-medium text-gray-500 w-32">Categoría</th>
                   <th className="px-6 py-3 font-medium text-gray-500 w-28">Precio</th>
-                  <th className="px-6 py-3 font-medium text-gray-500 w-32">Unidad</th>
+                  <th className="px-6 py-3 font-medium text-gray-500 w-28">Stock</th>
                   <th className="px-6 py-3 font-medium text-gray-500 w-24">Estado</th>
                   {canEdit && (
                     <th className="px-6 py-3 font-medium text-gray-500 w-24 text-right">Acciones</th>
@@ -377,11 +549,22 @@ export default function ProductsPage() {
                         <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{p.descripcion}</p>
                       )}
                     </td>
+                    <td className="px-6 py-4">
+                      <CategoryBadge categoria={p.categoria} />
+                    </td>
                     <td className="px-6 py-4 text-gray-700 font-mono text-xs">
                       $ {parseFloat(p.precio ?? 0).toFixed(2)}
                     </td>
-                    <td className="px-6 py-4 text-gray-500 text-xs">
-                      {p.unidad_de_medida?.codigo ?? '—'}
+                    <td className="px-6 py-4">
+                      {p.track_stock ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                          Con stock
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                          Sin stock
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <Badge
