@@ -5,6 +5,7 @@ import {
   ArrowLeft, Building2, GitBranch, Users, Activity,
   Plus, Pencil, Trash2, Star, Power, Save, RefreshCw,
   MapPin, Warehouse, AlertTriangle, Package, ChevronRight,
+  Search, Tag,
 } from 'lucide-react'
 import { getCompany, updateCompany }                          from '../../api/companies'
 import { getCompanyBranches, createCompanyBranch, updateCompanyBranch, deleteCompanyBranch } from '../../api/branches'
@@ -12,14 +13,16 @@ import { getCompanyUsers, createCompanyUser, updateCompanyUser, deleteCompanyUse
 import { getDepartamentos }  from '../../api/departamentos'
 import { getMunicipios }     from '../../api/municipios'
 import { getCatalogActivities, getCompanyActivities, addCompanyActivity, updateCompanyActivity, removeCompanyActivity } from '../../api/economicActivities'
-import { getCompanyProducts } from '../../api/products'
+import { getCompanyProducts, createCompanyProduct, updateCompanyProduct, deleteCompanyProduct } from '../../api/products'
+import { getProductCategories, createProductCategory } from '../../api/productCategories'
 import { getBranchInventory, addBranchInventory, updateBranchInventory, deleteBranchInventory } from '../../api/inventory'
 import { getUnidadesDeMedida } from '../../api/unidadesDeMedida'
-import Button   from '../../components/ui/Button'
-import Badge    from '../../components/ui/Badge'
-import Spinner  from '../../components/ui/Spinner'
-import Modal    from '../../components/ui/Modal'
-import Input    from '../../components/ui/Input'
+import Button     from '../../components/ui/Button'
+import Badge      from '../../components/ui/Badge'
+import Spinner    from '../../components/ui/Spinner'
+import Modal      from '../../components/ui/Modal'
+import Input      from '../../components/ui/Input'
+import Pagination from '../../components/ui/Pagination'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1051,6 +1054,371 @@ function ActivitiesTab({ companyId }) {
   )
 }
 
+// ─── Tab: Productos ───────────────────────────────────────────────────────────
+
+function CategoryBadge({ categoria }) {
+  if (!categoria) return <span className="text-gray-300 text-xs">—</span>
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
+      style={
+        categoria.color
+          ? { backgroundColor: categoria.color + '22', borderColor: categoria.color + '66', color: categoria.color }
+          : { backgroundColor: '#f1f5f9', borderColor: '#cbd5e1', color: '#475569' }
+      }
+    >
+      <Tag size={10} />
+      {categoria.nombre}
+    </span>
+  )
+}
+
+function ProductForm({ companyId, initial, onSuccess, onCancel }) {
+  const [apiError,        setApiError]        = useState('')
+  const [unidades,        setUnidades]        = useState([])
+  const [categories,      setCategories]      = useState([])
+  const [loadingUnidades, setLoadingUnidades] = useState(true)
+  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newCatName,      setNewCatName]      = useState('')
+  const [newCatColor,     setNewCatColor]     = useState('#6366f1')
+  const [savingCat,       setSavingCat]       = useState(false)
+
+  const isEdit = !!initial
+
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm({
+    defaultValues: initial
+      ? { ...initial, product_category_id: initial.product_category_id ?? '', track_stock: initial.track_stock ?? true }
+      : { codigo: '', nombre: '', descripcion: '', precio: '', peso: '', tamanio: '', cat_mh_unidad_de_medida_id: '', product_category_id: '', status: 'active', track_stock: true },
+  })
+
+  const trackStock = watch('track_stock')
+
+  useEffect(() => {
+    getUnidadesDeMedida({ per_page: 100 })
+      .then(({ data }) => setUnidades(data.data ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingUnidades(false))
+    getProductCategories(companyId, { per_page: 200 })
+      .then(({ data }) => setCategories(data.data ?? []))
+      .catch(() => {})
+  }, [companyId])
+
+  const handleCreateCategory = async () => {
+    if (!newCatName.trim()) return
+    setSavingCat(true)
+    try {
+      const res = await createProductCategory(companyId, { nombre: newCatName.trim(), color: newCatColor })
+      setCategories((prev) => [res.data.data, ...prev])
+      setNewCatName('')
+      setShowNewCategory(false)
+    } catch { /* ignore */ } finally { setSavingCat(false) }
+  }
+
+  const onSubmit = async (raw) => {
+    setApiError('')
+    const payload = {
+      ...raw,
+      cat_mh_unidad_de_medida_id: raw.cat_mh_unidad_de_medida_id || undefined,
+      product_category_id: raw.product_category_id || undefined,
+      precio: raw.precio !== '' ? raw.precio : undefined,
+      peso:   raw.peso   !== '' ? raw.peso   : undefined,
+      track_stock: raw.track_stock === true || raw.track_stock === 'true',
+    }
+    try {
+      if (isEdit) await updateCompanyProduct(companyId, initial.id, payload)
+      else        await createCompanyProduct(companyId, payload)
+      onSuccess()
+    } catch (err) {
+      const fe = err.response?.data?.errors
+      setApiError(fe ? Object.values(fe)[0]?.[0] : (err.response?.data?.message ?? 'Error al guardar el producto.'))
+    }
+  }
+
+  if (loadingUnidades) return <div className="py-8"><Spinner /></div>
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <FormError message={apiError} />
+
+      <div className="grid grid-cols-2 gap-4">
+        <Input id="p-codigo" label="SKU / Código" placeholder="Ej: PROD-001" error={errors.codigo?.message} {...register('codigo')} />
+        <div className="flex flex-col gap-1">
+          <label htmlFor="p-unidad" className="text-sm font-medium text-gray-700">Unidad de medida</label>
+          <select id="p-unidad" {...register('cat_mh_unidad_de_medida_id', { required: 'La unidad de medida es obligatoria' })}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">Seleccionar unidad...</option>
+            {unidades.map((u) => <option key={u.id} value={u.id}>{u.codigo} – {u.descripcion}</option>)}
+          </select>
+          {errors.cat_mh_unidad_de_medida_id && <p className="text-xs text-red-500">{errors.cat_mh_unidad_de_medida_id.message}</p>}
+        </div>
+      </div>
+
+      <Input id="p-nombre" label="Nombre *" placeholder="Ej: Hamburguesa Clásica" error={errors.nombre?.message}
+        {...register('nombre', { required: 'El nombre es obligatorio' })} />
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="p-desc" className="text-sm font-medium text-gray-700">Descripción</label>
+        <textarea id="p-desc" rows={3} placeholder="Descripción del producto..." {...register('descripcion')}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <Input id="p-precio" label="Precio *" type="number" step="0.01" min="0" placeholder="0.00" error={errors.precio?.message}
+          {...register('precio', { required: 'El precio es obligatorio', min: { value: 0, message: 'No puede ser negativo' } })} />
+        <Input id="p-peso"   label="Peso (kg)" type="number" step="0.001" min="0" placeholder="0.000" {...register('peso')} />
+        <Input id="p-tam"    label="Tamaño" placeholder="Ej: XL, 30x20cm" {...register('tamanio')} />
+      </div>
+
+      {/* Categoría */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <label htmlFor="p-cat" className="text-sm font-medium text-gray-700">Categoría</label>
+          <button type="button" onClick={() => setShowNewCategory((v) => !v)}
+            className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+            {showNewCategory ? 'Cancelar' : '+ Nueva categoría'}
+          </button>
+        </div>
+        {showNewCategory && (
+          <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <input type="text" placeholder="Nombre de la categoría..." value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <input type="color" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)}
+              className="h-8 w-10 rounded border border-gray-300 cursor-pointer" title="Color" />
+            <Button type="button" size="sm" loading={savingCat} onClick={handleCreateCategory}>Crear</Button>
+          </div>
+        )}
+        <select id="p-cat" {...register('product_category_id')}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="">Sin categoría</option>
+          {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.nombre}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="p-status" className="text-sm font-medium text-gray-700">Estado</label>
+          <select id="p-status" {...register('status')}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="active">Activo</option>
+            <option value="inactive">Inactivo</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700">Control de stock</span>
+          <label className="flex items-center gap-3 mt-1 cursor-pointer select-none">
+            <div className="relative">
+              <input type="checkbox" className="sr-only" {...register('track_stock')} />
+              <div className={`w-10 h-5 rounded-full transition-colors ${trackStock ? 'bg-brand-600' : 'bg-gray-300'}`} />
+              <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${trackStock ? 'translate-x-5' : 'translate-x-0'}`} />
+            </div>
+            <span className="text-sm text-gray-600">{trackStock ? 'Requiere stock' : 'Sin control de stock'}</span>
+          </label>
+          <p className="text-xs text-gray-400 leading-tight">Desactiva para productos sin necesidad de stock (ej: platos de comida).</p>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-2">
+        <Button variant="secondary" onClick={onCancel} type="button">Cancelar</Button>
+        <Button type="submit" loading={isSubmitting}>{isEdit ? 'Guardar cambios' : 'Crear producto'}</Button>
+      </div>
+    </form>
+  )
+}
+
+function ProductsTab({ companyId }) {
+  const [items,           setItems]           = useState([])
+  const [meta,            setMeta]            = useState(null)
+  const [page,            setPage]            = useState(1)
+  const [perPage,         setPerPage]         = useState(15)
+  const [loading,         setLoading]         = useState(true)
+  const [search,          setSearch]          = useState('')
+  const [filterCategory,  setFilterCategory]  = useState('')
+  const [categories,      setCategories]      = useState([])
+  const [showCreate,      setShowCreate]      = useState(false)
+  const [editing,         setEditing]         = useState(null)
+  const [deleting,        setDeleting]        = useState(null)
+  const [deleteLoading,   setDeleteLoading]   = useState(false)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    getCompanyProducts(companyId, { page, per_page: perPage })
+      .then(({ data }) => {
+        setItems(data.data ?? [])
+        setMeta(data.meta ?? null)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [companyId, page, perPage])
+
+  useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    getProductCategories(companyId, { per_page: 200 })
+      .then(({ data }) => setCategories(data.data ?? []))
+      .catch(() => {})
+  }, [companyId])
+
+  const filtered = items.filter((p) => {
+    const matchSearch   = p.nombre.toLowerCase().includes(search.toLowerCase()) || (p.codigo ?? '').toLowerCase().includes(search.toLowerCase())
+    const matchCategory = !filterCategory || String(p.product_category_id) === String(filterCategory)
+    return matchSearch && matchCategory
+  })
+
+  const handleDelete = async () => {
+    setDeleteLoading(true)
+    try { await deleteCompanyProduct(companyId, deleting.id); setDeleting(null); load() }
+    catch { /* ignore */ } finally { setDeleteLoading(false) }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-gray-500">{meta?.total ?? items.length} producto{(meta?.total ?? items.length) !== 1 ? 's' : ''}</p>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition" title="Recargar">
+            <RefreshCw size={13} />
+          </button>
+          <Button size="sm" onClick={() => { setShowCreate(true); setEditing(null) }}>
+            <Plus size={13} /> Nuevo producto
+          </Button>
+        </div>
+      </div>
+
+      {/* Search + filter */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre o código..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
+        {categories.length > 0 && (
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="py-2 px-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-gray-600"
+          >
+            <option value="">Todas las categorías</option>
+            {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.nombre}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-gray-100 overflow-hidden">
+        {loading ? (
+          <div className="py-16"><Spinner /></div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center">
+            <Package size={36} className="mx-auto text-gray-200 mb-3" />
+            <p className="text-gray-400 text-sm">
+              {search || filterCategory ? 'Sin resultados para tu búsqueda' : 'Aún no hay productos registrados'}
+            </p>
+            {!search && !filterCategory && (
+              <Button variant="secondary" size="sm" className="mt-4" onClick={() => setShowCreate(true)}>
+                <Plus size={13} /> Crear primer producto
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-left bg-gray-50">
+                  <th className="px-4 py-3 font-medium text-gray-500 w-28">SKU</th>
+                  <th className="px-4 py-3 font-medium text-gray-500">Nombre</th>
+                  <th className="px-4 py-3 font-medium text-gray-500 w-32">Categoría</th>
+                  <th className="px-4 py-3 font-medium text-gray-500 w-24">Precio</th>
+                  <th className="px-4 py-3 font-medium text-gray-500 w-24">Stock</th>
+                  <th className="px-4 py-3 font-medium text-gray-500 w-20">Estado</th>
+                  <th className="px-4 py-3 font-medium text-gray-500 w-20 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50 transition">
+                    <td className="px-4 py-3">
+                      {p.codigo
+                        ? <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">{p.codigo}</span>
+                        : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900">{p.nombre}</p>
+                      {p.descripcion && <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{p.descripcion}</p>}
+                    </td>
+                    <td className="px-4 py-3"><CategoryBadge categoria={p.categoria} /></td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-700">$ {parseFloat(p.precio ?? 0).toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      {p.track_stock
+                        ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">Con stock</span>
+                        : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">Sin stock</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge label={p.status === 'active' ? 'Activo' : 'Inactivo'} type={p.status === 'active' ? 'active' : 'inactive'} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => { setEditing(p); setShowCreate(false) }}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-brand-600 hover:bg-brand-50 transition" title="Editar">
+                          <Pencil size={13} />
+                        </button>
+                        <button onClick={() => setDeleting(p)}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition" title="Eliminar">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {meta && (
+          <Pagination
+            meta={meta}
+            onPage={(p) => setPage(p)}
+            onPerPage={(pp) => { setPage(1); setPerPage(pp) }}
+          />
+        )}
+      </div>
+
+      {/* Create modal */}
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Nuevo Producto" size="lg">
+        <ProductForm companyId={companyId} onSuccess={() => { setShowCreate(false); load() }} onCancel={() => setShowCreate(false)} />
+      </Modal>
+
+      {/* Edit modal */}
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar Producto" size="lg">
+        {editing && (
+          <ProductForm companyId={companyId} initial={editing} onSuccess={() => { setEditing(null); load() }} onCancel={() => setEditing(null)} />
+        )}
+      </Modal>
+
+      {/* Delete confirm modal */}
+      <Modal open={!!deleting} onClose={() => setDeleting(null)} title="Eliminar Producto" size="sm">
+        {deleting && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              ¿Eliminar el producto <span className="font-semibold text-gray-900">{deleting.nombre}</span>? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setDeleting(null)}>Cancelar</Button>
+              <Button variant="danger" onClick={handleDelete} loading={deleteLoading}>Eliminar</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -1058,6 +1426,7 @@ const TABS = [
   { id: 'branches',   label: 'Sucursales',          icon: GitBranch  },
   { id: 'users',      label: 'Usuarios',            icon: Users      },
   { id: 'activities', label: 'Act. Económicas',     icon: Activity   },
+  { id: 'products',   label: 'Productos',           icon: Package    },
 ]
 
 export default function CompanyDetailPage() {
@@ -1152,6 +1521,7 @@ export default function CompanyDetailPage() {
           {activeTab === 'branches'   && <BranchesTab   companyId={company.id} />}
           {activeTab === 'users'      && <UsersTab      companyId={company.id} />}
           {activeTab === 'activities' && <ActivitiesTab companyId={company.id} />}
+          {activeTab === 'products'   && <ProductsTab   companyId={company.id} />}
         </div>
       </div>
     </div>
